@@ -1,0 +1,28 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - AI_SERVICE_URL=http://ai-service:8100
+    depends_on:
+      - ai-service
+
+  ai-service:
+    build: ./ai-service
+    ports:
+      - "8100:8100"
+    environment:
+      - YOLO_MODEL_PATH=/app/models/fire.pt
+      - DETECTION_CONFIDENCE=0.45
+    volumes:
+      - ./ai-service/models:/app/models
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000/api/v1
+    depends_on:
+      - backend

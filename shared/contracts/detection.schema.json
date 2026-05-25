@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DetectionEvent",
+  "type": "object",
+  "required": ["id", "cameraId", "label", "confidence", "severity", "createdAt"],
+  "properties": {
+    "id": { "type": "string" },
+    "cameraId": { "type": "string" },
+    "label": { "type": "string", "enum": ["fire", "smoke"] },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "severity": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+    "snapshotUrl": { "type": ["string", "null"] },
+    "createdAt": { "type": "string", "format": "date-time" }
+  }
+}
