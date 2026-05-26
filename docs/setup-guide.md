@@ -63,6 +63,16 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+Tải model fire/smoke đã train:
+
+[Tải fire.pt từ Google Drive](https://drive.google.com/file/d/12ZUgw6NmtuVrUQHK-4-Qq5Xams-QI83_/view?usp=sharing)
+
+Repository đã có sẵn thư mục `ai-service/models/`. Sau khi tải xong, đặt file vào:
+
+```text
+ai-service/models/fire.pt
+```
+
 Nếu máy chưa có `python3.12`, trên macOS có thể cài:
 
 ```bash

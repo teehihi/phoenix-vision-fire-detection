@@ -50,6 +50,16 @@ winget install Python.Python.3.12
 
 ## Chạy Phát Hiện Từ Webcam Trên macOS
 
+Trước khi chạy, tải model fire/smoke đã train:
+
+[Tải fire.pt từ Google Drive](https://drive.google.com/file/d/12ZUgw6NmtuVrUQHK-4-Qq5Xams-QI83_/view?usp=sharing)
+
+Đặt file vào thư mục có sẵn:
+
+```text
+ai-service/models/fire.pt
+```
+
 Test nhanh với model fire đã train:
 
 ```bash

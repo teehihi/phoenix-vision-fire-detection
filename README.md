@@ -130,7 +130,20 @@ cd phoenix-vision-fire-detection
 
 Các bước bên dưới giả định terminal đang đứng tại thư mục gốc `phoenix-vision-fire-detection`. Nếu mở terminal mới, hãy `cd` lại vào thư mục gốc repository trước.
 
-## 2️⃣ Chạy dịch vụ AI realtime webcam
+## 2️⃣ Tải model đã train
+
+Repository đã có sẵn thư mục `ai-service/models/`, nhưng không commit trực tiếp file model `.pt`.
+Tải model fire/smoke đã train tại đây:
+
+[Tải fire.pt từ Google Drive](https://drive.google.com/file/d/12ZUgw6NmtuVrUQHK-4-Qq5Xams-QI83_/view?usp=sharing)
+
+Sau khi tải xong, đặt file vào đúng đường dẫn:
+
+```text
+ai-service/models/fire.pt
+```
+
+## 3️⃣ Chạy dịch vụ AI realtime webcam
 
 Trên macOS:
 
@@ -164,7 +177,7 @@ Sau đó chạy:
 python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
 ```
 
-## 3️⃣ Chạy máy chủ API
+## 4️⃣ Chạy máy chủ API
 
 ```bash
 cd backend
@@ -174,7 +187,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-## 4️⃣ Chạy giao diện dashboard
+## 5️⃣ Chạy giao diện dashboard
 
 ```bash
 cd frontend
@@ -213,7 +226,7 @@ Dataset cần được annotate theo chuẩn YOLO format trước khi train mode
 ai-service/models/fire.pt
 ```
 
-Repository hiện tại không commit dataset và model weights lớn lên GitHub. Người dùng cần tự bổ sung dataset/model phù hợp khi huấn luyện hoặc chạy detection thực tế.
+Repository hiện tại không commit dataset và model weights lớn lên GitHub. Model mẫu đã train được lưu ngoài repository tại link Google Drive ở phần cài đặt. Nếu train lại model mới, hãy thay file tại `ai-service/models/fire.pt`.
 
 Project đã cung cấp script hỗ trợ chuẩn bị dataset và train model:
 
