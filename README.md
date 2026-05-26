@@ -192,6 +192,14 @@ Xem hướng dẫn đầy đủ cho macOS và Windows tại [docs/setup-guide.md
 
 ---
 
+# 📚 Tài liệu hướng dẫn
+
+- [Hướng dẫn cài đặt và chạy dự án](docs/setup-guide.md)
+- [Hướng dẫn chuẩn bị dataset và train YOLO](docs/training-guide.md)
+- [Kiến trúc hệ thống](docs/architecture.md)
+
+---
+
 # 🧪 Dataset
 
 Dự án hướng tới bài toán phát hiện lửa và khói. Dataset huấn luyện nên chứa:
@@ -206,6 +214,16 @@ ai-service/models/fire.pt
 ```
 
 Repository hiện tại không commit dataset và model weights lớn lên GitHub. Người dùng cần tự bổ sung dataset/model phù hợp khi huấn luyện hoặc chạy detection thực tế.
+
+Project đã cung cấp script hỗ trợ chuẩn bị dataset và train model:
+
+```bash
+cd ai-service
+python -m app.training.prepare_dataset --download-indoor
+python -m app.training.train_yolo --data ../datasets/fire_smoke/data.yaml
+```
+
+Xem chi tiết tại [docs/training-guide.md](docs/training-guide.md).
 
 ---
 

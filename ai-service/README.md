@@ -70,6 +70,33 @@ python -m app.realtime_webcam --model models/fire.pt --camera 0
 
 Nhấn `q` hoặc `Esc` để thoát.
 
+## Chuẩn Bị Dataset Và Train Model
+
+Tải dataset indoor từ Kaggle và gom về cấu trúc YOLO chuẩn:
+
+```bash
+python -m app.training.prepare_dataset --download-indoor
+```
+
+Train model YOLOv11 nhẹ cho webcam realtime:
+
+```bash
+python -m app.training.train_yolo \
+  --data ../datasets/fire_smoke/data.yaml \
+  --model yolo11n.pt \
+  --epochs 100 \
+  --imgsz 640 \
+  --batch 8
+```
+
+Sau khi train xong, script sẽ copy model tốt nhất về:
+
+```text
+models/fire.pt
+```
+
+Xem hướng dẫn đầy đủ tại [../docs/training-guide.md](../docs/training-guide.md).
+
 ## Chạy Phát Hiện Từ Webcam Trên Windows
 
 Nếu đã active venv:

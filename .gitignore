@@ -23,3 +23,7 @@ dist/
 *.engine
 recordings/
 uploads/
+datasets/
+runs/
+ai-service/runs/
+*.zip

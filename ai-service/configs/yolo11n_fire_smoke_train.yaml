@@ -1,0 +1,23 @@
+# Cấu hình train YOLOv11n cho fire/smoke realtime webcam.
+
+model: yolo11n.pt
+data: ../datasets/fire_smoke/data.yaml
+epochs: 100
+imgsz: 640
+batch: 8
+patience: 20
+workers: 4
+weight_decay: 0.0005
+close_mosaic: 10
+cos_lr: true
+
+# Augmentation vừa phải để tránh overfit nhưng không làm méo ngọn lửa/khói quá mạnh.
+degrees: 3.0
+translate: 0.08
+scale: 0.35
+fliplr: 0.5
+hsv_v: 0.25
+
+project: runs/fire_smoke
+name: yolo11n_fire_smoke
+export: models/fire.pt
