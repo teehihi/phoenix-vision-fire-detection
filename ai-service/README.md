@@ -50,22 +50,22 @@ winget install Python.Python.3.12
 
 ## Chạy Phát Hiện Từ Webcam Trên macOS
 
-Test nhanh với model YOLO mặc định:
+Test nhanh với model fire đã train:
 
 ```bash
-python3 -m app.realtime_webcam --model yolov8n.pt --camera 0
+python3 -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
 ```
 
 Nếu đã active venv:
 
 ```bash
-python -m app.realtime_webcam --model yolov8n.pt --camera 0
+python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
 ```
 
 Chạy với model fire riêng:
 
 ```bash
-python -m app.realtime_webcam --model models/fire.pt --camera 0
+python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
 ```
 
 Nhấn `q` hoặc `Esc` để thoát.
@@ -102,19 +102,19 @@ Xem hướng dẫn đầy đủ tại [../docs/training-guide.md](../docs/traini
 Nếu đã active venv:
 
 ```powershell
-python -m app.realtime_webcam --model yolov8n.pt --camera 0
+python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
 ```
 
 Chạy với model fire riêng:
 
 ```powershell
-python -m app.realtime_webcam --model models/fire.pt --camera 0
+python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
 ```
 
 Nếu camera `0` không hoạt động:
 
 ```powershell
-python -m app.realtime_webcam --model yolov8n.pt --camera 1
+python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 1
 ```
 
 Nhấn `q` hoặc `Esc` để thoát.
@@ -130,7 +130,7 @@ Code tự chọn cơ chế camera OpenCV phù hợp:
 Nếu camera `0` không hoạt động:
 
 ```bash
-python -m app.realtime_webcam --model yolov8n.pt --camera 1
+python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 1
 ```
 
 ## Quyền Camera Trên macOS

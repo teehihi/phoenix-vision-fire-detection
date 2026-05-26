@@ -72,16 +72,16 @@ brew install python@3.12
 Nếu bạn muốn chạy nhanh bằng Python hiện tại:
 
 ```bash
-python3 -m app.realtime_webcam --model yolov8n.pt --camera 0
+python3 -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
 ```
 
 Nếu đã active venv:
 
 ```bash
-python -m app.realtime_webcam --model yolov8n.pt --camera 0
+python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
 ```
 
-Lệnh trên dùng model YOLO mặc định `yolov8n.pt`. Lần đầu chạy có thể tải model từ internet.
+Lệnh trên dùng model fire đã train tại `models/fire.pt`. Hãy tải file `fire.pt` từ Google Drive về `ai-service/models/fire.pt` trước khi chạy.
 
 Nếu có model phát hiện lửa riêng, đặt file tại:
 
@@ -92,7 +92,7 @@ ai-service/models/fire.pt
 Rồi chạy:
 
 ```bash
-python -m app.realtime_webcam --model models/fire.pt --camera 0
+python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
 ```
 
 Thoát cửa sổ webcam bằng phím `q` hoặc `Esc`.
@@ -117,7 +117,7 @@ Bật quyền camera cho app đang chạy lệnh, ví dụ Terminal, iTerm hoặ
 Nếu camera `0` không mở được, thử:
 
 ```bash
-python -m app.realtime_webcam --model yolov8n.pt --camera 1
+python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 1
 ```
 
 ## 2. Chạy Dịch Vụ AI Realtime Webcam Trên Windows
@@ -138,16 +138,16 @@ py -3.12 -m venv .venv
 pip install -r requirements.txt
 ```
 
-Chạy test webcam với model YOLO mặc định:
+Chạy test webcam với model fire đã train:
 
 ```powershell
-python -m app.realtime_webcam --model yolov8n.pt --camera 0
+python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
 ```
 
 Nếu camera `0` không được:
 
 ```powershell
-python -m app.realtime_webcam --model yolov8n.pt --camera 1
+python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 1
 ```
 
 Nếu Windows hỏi quyền camera, vào:
@@ -323,18 +323,18 @@ cd phoenix-vision-fire-detection
 py -3.12 -m compileall backend ai-service
 ```
 
-Test webcam với YOLO mặc định trên macOS:
+Test webcam với model fire đã train trên macOS:
 
 ```bash
 cd ai-service
-python3 -m app.realtime_webcam --model yolov8n.pt --camera 0
+python3 -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
 ```
 
-Test webcam với YOLO mặc định trên Windows:
+Test webcam với model fire đã train trên Windows:
 
 ```powershell
 cd ai-service
-python -m app.realtime_webcam --model yolov8n.pt --camera 0
+python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
 ```
 
 Test frontend build trên macOS hoặc Windows:
@@ -351,7 +351,7 @@ npm run build
 Bạn chưa active venv hoặc máy chỉ có `python3`. Dùng:
 
 ```bash
-python3 -m app.realtime_webcam --model yolov8n.pt --camera 0
+python3 -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
 ```
 
 `source: no such file or directory: .venv/bin/activate`
@@ -374,13 +374,13 @@ Trên Windows, lệnh active venv là:
 Kiểm tra quyền camera hoặc thử camera khác:
 
 ```bash
-python -m app.realtime_webcam --model yolov8n.pt --camera 1
+python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 1
 ```
 
 Trên Windows:
 
 ```powershell
-python -m app.realtime_webcam --model yolov8n.pt --camera 1
+python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 1
 ```
 
 `Cannot install numpy... ultralytics...`

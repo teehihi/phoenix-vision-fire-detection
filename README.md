@@ -139,7 +139,7 @@ cd ai-service
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python -m app.realtime_webcam --model yolov8n.pt --camera 0
+python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
 ```
 
 Trên Windows PowerShell:
@@ -149,7 +149,7 @@ cd ai-service
 py -3.12 -m venv .venv
 .\.venv\Scripts\activate
 pip install -r requirements.txt
-python -m app.realtime_webcam --model yolov8n.pt --camera 0
+python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
 ```
 
 Nếu đã có model phát hiện lửa riêng, đặt file tại:
@@ -161,7 +161,7 @@ ai-service/models/fire.pt
 Sau đó chạy:
 
 ```bash
-python -m app.realtime_webcam --model models/fire.pt --camera 0
+python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
 ```
 
 ## 3️⃣ Chạy máy chủ API

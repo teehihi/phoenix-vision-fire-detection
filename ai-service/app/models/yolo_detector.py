@@ -17,7 +17,7 @@ class YoloDetector:
         if self.model is None:
             self.model = YOLO(str(self.model_path))
 
-    def predict(self, frame: np.ndarray) -> list[DetectionResult]:
+    def predict(self, frame: np.ndarray, class_ids: list[int] | None = None) -> list[DetectionResult]:
         self.load()
         assert self.model is not None
 
@@ -26,6 +26,7 @@ class YoloDetector:
             conf=settings.detection_confidence,
             imgsz=settings.inference_size,
             device=settings.yolo_device,
+            classes=class_ids,
             verbose=False,
         )
 
