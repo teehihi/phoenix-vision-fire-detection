@@ -84,6 +84,8 @@ Các tham số hữu ích để giảm false positive:
 python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0 --fire-conf 0.65 --smoke-conf 0.60 --stable-frames 4
 ```
 
+Khi `fire/smoke` xuất hiện và có `person` nằm gần vùng nguy hiểm, hệ thống sẽ đánh dấu `HUMAN AT RISK` và tính mức rủi ro realtime.
+
 Nhấn `q` hoặc `Esc` để thoát.
 
 ## Chuẩn Bị Dataset Và Train Model

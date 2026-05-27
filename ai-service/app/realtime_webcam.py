@@ -4,7 +4,8 @@ import cv2
 
 from app.core.config import settings
 from app.models.yolo_detector import YoloDetector
-from app.pipelines.frame_pipeline import draw_detections, draw_fps
+from app.pipelines.danger_analysis import DangerAnalysisConfig, DangerAnalyzer
+from app.pipelines.frame_pipeline import draw_danger_analysis, draw_detections, draw_fps
 from app.pipelines.temporal_smoothing import StableDetectionConfig, TemporalDetectionSmoother
 from app.streams.webcam_stream import WebcamStream
 from app.utils.fps import FPSCounter
@@ -29,6 +30,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--stable-frames", type=int, default=3, help="Minimum hits in smoothing window before showing fire/smoke.")
     parser.add_argument("--min-area-ratio", type=float, default=0.001, help="Drop tiny fire/smoke boxes below this frame-area ratio.")
     parser.add_argument("--person-every", type=int, default=3, help="Run person detection every N frames and reuse last result.")
+    parser.add_argument("--danger-margin", type=float, default=0.40, help="Expand fire/smoke boxes by this ratio for danger zones.")
+    parser.add_argument("--danger-distance", type=float, default=0.18, help="Max center-distance ratio for nearby human risk.")
     parser.add_argument("--window", default="Realtime YOLO Detection", help="OpenCV window title.")
     return parser.parse_args()
 
@@ -50,6 +53,12 @@ def run() -> None:
     )
     frame_index = 0
     person_detections = []
+    danger_analyzer = DangerAnalyzer(
+        DangerAnalysisConfig(
+            zone_margin_ratio=args.danger_margin,
+            center_distance_ratio=args.danger_distance,
+        )
+    )
 
     cv2.namedWindow(args.window, cv2.WINDOW_NORMAL)
 
@@ -68,8 +77,14 @@ def run() -> None:
         frame_index += 1
 
         fps = fps_counter.update()
+        danger_analysis = danger_analyzer.analyze(
+            detections,
+            frame_width=frame.shape[1],
+            frame_height=frame.shape[0],
+        )
 
         draw_detections(frame, detections)
+        draw_danger_analysis(frame, danger_analysis)
         draw_fps(frame, fps)
         cv2.imshow(args.window, frame)
 
