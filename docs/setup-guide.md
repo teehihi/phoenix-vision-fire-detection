@@ -226,14 +226,14 @@ GET  /api/v1/alerts
 
 ## 5. Chạy API Của Dịch Vụ AI
 
-Realtime webcam runner ở bước 1 là cách test trực tiếp nhất. Nếu muốn chạy AI service dưới dạng API:
+Realtime webcam runner ở bước 1 là cách test trực tiếp nhất. Nếu muốn chạy AI service dưới dạng API/WebSocket để dashboard React nhận frame đã xử lý:
 
 Trên macOS:
 
 ```bash
 cd ai-service
 source .venv/bin/activate
-uvicorn app.main:app --reload --port 8100
+uvicorn app.main:app --reload --port 8001
 ```
 
 Trên Windows:
@@ -241,13 +241,19 @@ Trên Windows:
 ```powershell
 cd ai-service
 .\.venv\Scripts\activate
-uvicorn app.main:app --reload --port 8100
+uvicorn app.main:app --reload --port 8001
 ```
 
 Kiểm tra:
 
 ```bash
-curl http://localhost:8100/health
+curl http://localhost:8001/health
+```
+
+Dashboard trang Live Detection sẽ kết nối WebSocket tới:
+
+```text
+ws://localhost:8001/api/stream/webcam?fps=12&quality=72
 ```
 
 ## 6. Chạy Dashboard Giao Diện Trên macOS
@@ -312,7 +318,7 @@ Các cổng mặc định:
 ```text
 Giao diện:    http://localhost:5173
 Máy chủ API:  http://localhost:8000
-Dịch vụ AI:   http://localhost:8100
+Dịch vụ AI:   http://localhost:8001
 ```
 
 Lưu ý: Docker thường không truy cập webcam local dễ như chạy Python trực tiếp. Để test realtime webcam, nên chạy `python -m app.realtime_webcam` trực tiếp trên máy.

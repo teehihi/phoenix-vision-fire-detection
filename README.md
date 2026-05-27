@@ -195,7 +195,20 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-## 5️⃣ Chạy giao diện dashboard
+## 5️⃣ Chạy AI service dạng WebSocket cho dashboard realtime
+
+```bash
+cd ai-service
+uvicorn app.main:app --reload --port 8001
+```
+
+Dashboard sẽ nhận frame đã xử lý qua:
+
+```text
+ws://localhost:8001/api/stream/webcam
+```
+
+## 6️⃣ Chạy giao diện dashboard
 
 ```bash
 cd frontend
@@ -218,6 +231,9 @@ Xem hướng dẫn đầy đủ cho macOS và Windows tại [docs/setup-guide.md
 - [Hướng dẫn cài đặt và chạy dự án](docs/setup-guide.md)
 - [Hướng dẫn chuẩn bị dataset và train YOLO](docs/training-guide.md)
 - [Thiết kế phân tích rủi ro cháy realtime](docs/risk-analysis.md)
+- [Thiết kế hệ thống phản ứng khẩn cấp](docs/emergency-response.md)
+- [Thiết kế incident timeline chuyên nghiệp](docs/incident-timeline.md)
+- [Kiến trúc realtime WebSocket streaming](docs/realtime-communication.md)
 - [Kiến trúc hệ thống](docs/architecture.md)
 
 ---

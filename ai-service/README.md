@@ -182,19 +182,19 @@ Bật quyền camera cho desktop apps hoặc app terminal đang dùng.
 Ngoài realtime webcam runner, service cũng có FastAPI endpoint:
 
 ```bash
-uvicorn app.main:app --reload --port 8100
+uvicorn app.main:app --reload --port 8001
 ```
 
 Trên Windows cũng dùng lệnh tương tự sau khi active venv:
 
 ```powershell
-uvicorn app.main:app --reload --port 8100
+uvicorn app.main:app --reload --port 8001
 ```
 
 Kiểm tra:
 
 ```bash
-curl http://localhost:8100/health
+curl http://localhost:8001/health
 ```
 
 Detect frame qua API:
@@ -202,6 +202,14 @@ Detect frame qua API:
 ```text
 POST /api/detect/frame
 ```
+
+Stream frame đã xử lý cho React dashboard:
+
+```text
+ws://localhost:8001/api/stream/webcam?fps=12&quality=72
+```
+
+Xem thêm tại [../docs/realtime-communication.md](../docs/realtime-communication.md).
 
 ## Cấu Hình
 

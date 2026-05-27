@@ -7,3 +7,42 @@ body {
   background: #f8fafc;
   color: #0f172a;
 }
+
+@keyframes emergencyPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgb(239 68 68 / 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgb(239 68 68 / 0);
+  }
+}
+
+@keyframes emergencyPulseSoft {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgb(245 158 11 / 0.25);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgb(245 158 11 / 0);
+  }
+}
+
+@keyframes emergencyFlash {
+  0%, 100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.35);
+  }
+}
+
+.emergency-pulse {
+  animation: emergencyPulse 1s ease-in-out infinite;
+}
+
+.emergency-pulse-soft {
+  animation: emergencyPulseSoft 1.8s ease-in-out infinite;
+}
+
+.emergency-flash {
+  animation: emergencyFlash 0.55s ease-in-out infinite;
+}
