@@ -5,6 +5,7 @@ import cv2
 from app.core.config import settings
 from app.models.yolo_detector import YoloDetector
 from app.pipelines.frame_pipeline import draw_detections, draw_fps
+from app.pipelines.temporal_smoothing import StableDetectionConfig, TemporalDetectionSmoother
 from app.streams.webcam_stream import WebcamStream
 from app.utils.fps import FPSCounter
 
@@ -21,6 +22,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--width", type=int, default=settings.camera_width, help="Capture width.")
     parser.add_argument("--height", type=int, default=settings.camera_height, help="Capture height.")
     parser.add_argument("--fps", type=int, default=settings.camera_fps, help="Requested camera FPS.")
+    parser.add_argument("--fire-conf", type=float, default=0.55, help="Minimum stable confidence for fire.")
+    parser.add_argument("--smoke-conf", type=float, default=0.50, help="Minimum stable confidence for smoke.")
+    parser.add_argument("--person-conf", type=float, default=0.45, help="Minimum confidence for person detection.")
+    parser.add_argument("--smoothing-window", type=int, default=5, help="Number of recent frames used for smoothing.")
+    parser.add_argument("--stable-frames", type=int, default=3, help="Minimum hits in smoothing window before showing fire/smoke.")
+    parser.add_argument("--min-area-ratio", type=float, default=0.001, help="Drop tiny fire/smoke boxes below this frame-area ratio.")
+    parser.add_argument("--person-every", type=int, default=3, help="Run person detection every N frames and reuse last result.")
     parser.add_argument("--window", default="Realtime YOLO Detection", help="OpenCV window title.")
     return parser.parse_args()
 
@@ -31,6 +39,17 @@ def run() -> None:
     person_detector = YoloDetector(args.person_model) if args.person_model else None
     stream = WebcamStream(camera_index=args.camera, width=args.width, height=args.height, fps=args.fps)
     fps_counter = FPSCounter()
+    smoother = TemporalDetectionSmoother(
+        StableDetectionConfig(
+            window_size=args.smoothing_window,
+            min_hits=args.stable_frames,
+            fire_confidence=args.fire_conf,
+            smoke_confidence=args.smoke_conf,
+            min_area_ratio=args.min_area_ratio,
+        )
+    )
+    frame_index = 0
+    person_detections = []
 
     cv2.namedWindow(args.window, cv2.WINDOW_NORMAL)
 
@@ -39,9 +58,14 @@ def run() -> None:
             cv2.setWindowTitle(args.window, f"{args.window} - {stream.backend_name}")
             stream.backend_name = None
 
-        detections = fire_detector.predict(frame)
+        fire_detections = fire_detector.predict(frame, confidence=min(args.fire_conf, args.smoke_conf))
+        detections = smoother.update(fire_detections, frame_width=frame.shape[1], frame_height=frame.shape[0])
+
         if person_detector is not None:
-            detections.extend(person_detector.predict(frame, class_ids=[0]))
+            if frame_index % max(args.person_every, 1) == 0:
+                person_detections = person_detector.predict(frame, class_ids=[0], confidence=args.person_conf)
+            detections.extend(person_detections)
+        frame_index += 1
 
         fps = fps_counter.update()
 
