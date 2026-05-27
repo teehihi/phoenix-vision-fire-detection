@@ -217,6 +217,7 @@ Xem hướng dẫn đầy đủ cho macOS và Windows tại [docs/setup-guide.md
 
 - [Hướng dẫn cài đặt và chạy dự án](docs/setup-guide.md)
 - [Hướng dẫn chuẩn bị dataset và train YOLO](docs/training-guide.md)
+- [Thiết kế phân tích rủi ro cháy realtime](docs/risk-analysis.md)
 - [Kiến trúc hệ thống](docs/architecture.md)
 
 ---

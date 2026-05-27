@@ -67,14 +67,30 @@ def draw_danger_analysis(frame: np.ndarray, analysis: DangerAnalysisResult) -> n
 
 def _draw_risk_banner(frame: np.ndarray, analysis: DangerAnalysisResult) -> None:
     color = _risk_color(analysis.risk_level)
-    cv2.rectangle(frame, (12, 56), (360, 118), color, -1)
-    cv2.putText(frame, f"RISK: {analysis.risk_level}", (24, 82), cv2.FONT_HERSHEY_SIMPLEX, 0.72, (255, 255, 255), 2)
+    cv2.rectangle(frame, (12, 56), (430, 148), color, -1)
+    cv2.putText(
+        frame,
+        f"RISK: {analysis.risk_level} ({analysis.risk_score:.0f}/100)",
+        (24, 82),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.72,
+        (255, 255, 255),
+        2,
+    )
     cv2.putText(frame, analysis.status, (24, 108), cv2.FONT_HERSHEY_SIMPLEX, 0.58, (255, 255, 255), 2)
+    cv2.putText(
+        frame,
+        f"duration {analysis.duration_seconds:.1f}s | consistency {analysis.frame_consistency:.0%} | humans {analysis.humans_nearby_count}",
+        (24, 134),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.48,
+        (255, 255, 255),
+        1,
+    )
 
 
 def _risk_color(risk_level: RiskLevel) -> tuple[int, int, int]:
     colors = {
-        RiskLevel.SAFE: (34, 197, 94),
         RiskLevel.LOW: (59, 130, 246),
         RiskLevel.MEDIUM: (0, 165, 255),
         RiskLevel.HIGH: (0, 0, 255),

@@ -15,6 +15,8 @@ def test_human_near_fire_is_at_risk() -> None:
     assert analysis.human_at_risk is True
     assert analysis.status == "HUMAN AT RISK"
     assert analysis.risk_level == RiskLevel.HIGH
+    assert analysis.risk_score > 0
+    assert analysis.humans_nearby_count == 1
 
 
 def test_human_far_from_fire_is_not_at_risk() -> None:
@@ -28,6 +30,25 @@ def test_human_far_from_fire_is_not_at_risk() -> None:
 
     assert analysis.human_at_risk is False
     assert analysis.risk_level == RiskLevel.MEDIUM
+
+
+def test_risk_score_increases_with_duration_and_consistency() -> None:
+    analyzer = DangerAnalyzer(
+        DangerAnalysisConfig(
+            duration_saturation_seconds=10,
+            fire_area_high_ratio=0.10,
+            history_size=5,
+        )
+    )
+    detections = [_detection("fire", 0.9, 0, 0, 160, 120)]
+
+    first = analyzer.analyze(detections, frame_width=640, frame_height=480, timestamp=0.0)
+    later = analyzer.analyze(detections, frame_width=640, frame_height=480, timestamp=8.0)
+
+    assert later.risk_score > first.risk_score
+    assert later.duration_seconds == 8.0
+    assert later.frame_consistency == 1.0
+    assert later.risk_factors.duration_score == 80.0
 
 
 def _detection(label: str, confidence: float, x: float, y: float, width: float, height: float) -> DetectionResult:
