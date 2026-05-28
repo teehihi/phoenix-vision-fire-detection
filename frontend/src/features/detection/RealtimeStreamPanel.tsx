@@ -1,4 +1,6 @@
+import { motion } from 'framer-motion';
 import { Activity, AlertTriangle, Camera, CircleOff, Radio, RefreshCcw, ShieldCheck, Users } from 'lucide-react';
+import { CameraOverlay, DangerBeacon, EmergencyOverlay } from '../../components/effects/CinematicEffects';
 import { useRealtimeStream } from '../../hooks/useRealtimeStream';
 import type { ProcessedFrameMessage } from '../../types/detection';
 
@@ -13,9 +15,11 @@ export function RealtimeStreamPanel() {
   const { frame, state, error } = useRealtimeStream();
   const connected = state === 'connected';
   const imageSrc = frame ? `data:image/jpeg;base64,${frame.frame}` : null;
+  const isHighRisk = frame?.risk.riskLevel === 'HIGH' || frame?.risk.riskLevel === 'CRITICAL';
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <section className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      {isHighRisk ? <EmergencyOverlay /> : null}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950">
@@ -28,7 +32,7 @@ export function RealtimeStreamPanel() {
       </div>
 
       <div className="grid gap-0 xl:grid-cols-[1.55fr_0.85fr]">
-        <div className="relative aspect-video bg-slate-950">
+        <div className="camera-corners relative aspect-video bg-slate-950">
           {imageSrc ? (
             <img src={imageSrc} alt="Realtime processed fire detection stream" className="h-full w-full object-contain" />
           ) : (
@@ -49,6 +53,8 @@ export function RealtimeStreamPanel() {
               {frame?.fps ? `${frame.fps.toFixed(1)} FPS` : 'FPS --'}
             </span>
           </div>
+
+          <CameraOverlay danger={isHighRisk} />
         </div>
 
         <aside className="space-y-4 border-t border-slate-100 bg-slate-50/60 p-5 xl:border-l xl:border-t-0">
@@ -78,7 +84,18 @@ function RiskSummary({ frame }: { frame: ProcessedFrameMessage | null }) {
   const level = risk?.riskLevel ?? 'LOW';
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
+    <motion.div
+      className="relative rounded-xl border border-slate-200 bg-white p-4"
+      animate={level === 'HIGH' || level === 'CRITICAL' ? { boxShadow: ['0 0 0 rgba(239,68,68,0)', '0 0 28px rgba(239,68,68,0.18)', '0 0 0 rgba(239,68,68,0)'] } : undefined}
+      transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+    >
+      {level === 'HIGH' || level === 'CRITICAL' ? (
+        <div className="pointer-events-none absolute right-4 top-4 h-8 w-8 text-red-500">
+          <DangerBeacon tone="danger">
+            <span className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-current" />
+          </DangerBeacon>
+        </div>
+      ) : null}
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Risk Level</p>
@@ -90,10 +107,12 @@ function RiskSummary({ frame }: { frame: ProcessedFrameMessage | null }) {
       <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
         <Metric label="Duration" value={`${risk?.durationSeconds?.toFixed(1) ?? '0.0'}s`} />
         <Metric label="Consistency" value={`${Math.round((risk?.frameConsistency ?? 0) * 100)}%`} />
+        <Metric label="People" value={String(risk?.humansDetectedCount ?? 0)} />
+        <Metric label="At Risk" value={String(risk?.humansNearbyCount ?? 0)} />
         <Metric label="Fire Area" value={`${Math.round((risk?.fireAreaRatio ?? 0) * 100)}%`} />
         <Metric label="Smoke Area" value={`${Math.round((risk?.smokeAreaRatio ?? 0) * 100)}%`} />
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -113,10 +132,10 @@ function DetectionSummary({ frame }: { frame: ProcessedFrameMessage | null }) {
       </div>
       <div className="mt-4 space-y-2">
         {detections.slice(0, 5).map((item, index) => (
-          <div key={`${item.label}-${index}`} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+          <motion.div key={`${item.label}-${index}`} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
             <span className="font-medium capitalize text-slate-700">{item.label}</span>
             <span className="text-slate-500">{Math.round(item.confidence * 100)}%</span>
-          </div>
+          </motion.div>
         ))}
       </div>
     </div>

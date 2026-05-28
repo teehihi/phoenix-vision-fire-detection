@@ -87,6 +87,7 @@ class DangerAnalyzer:
             human_at_risk=human_at_risk,
             duration_seconds=duration_seconds,
             frame_consistency=frame_consistency,
+            humans_detected_count=len(person_boxes),
             humans_nearby_count=len(humans_at_risk),
             fire_area_ratio=fire_area_ratio,
             smoke_area_ratio=smoke_area_ratio,

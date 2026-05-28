@@ -80,7 +80,7 @@ def _draw_risk_banner(frame: np.ndarray, analysis: DangerAnalysisResult) -> None
     cv2.putText(frame, analysis.status, (24, 108), cv2.FONT_HERSHEY_SIMPLEX, 0.58, (255, 255, 255), 2)
     cv2.putText(
         frame,
-        f"duration {analysis.duration_seconds:.1f}s | consistency {analysis.frame_consistency:.0%} | humans {analysis.humans_nearby_count}",
+        f"duration {analysis.duration_seconds:.1f}s | consistency {analysis.frame_consistency:.0%} | people {analysis.humans_detected_count} | at risk {analysis.humans_nearby_count}",
         (24, 134),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.48,

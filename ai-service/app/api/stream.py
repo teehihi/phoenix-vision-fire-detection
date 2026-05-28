@@ -71,6 +71,7 @@ async def stream_webcam(websocket: WebSocket) -> None:
                         "humanAtRisk": analysis.human_at_risk,
                         "durationSeconds": analysis.duration_seconds,
                         "frameConsistency": analysis.frame_consistency,
+                        "humansDetectedCount": analysis.humans_detected_count,
                         "humansNearbyCount": analysis.humans_nearby_count,
                         "fireDetected": analysis.fire_detected,
                         "smokeDetected": analysis.smoke_detected,

@@ -44,6 +44,7 @@ class DangerAnalysisResult(BaseModel):
     human_at_risk: bool = False
     duration_seconds: float = 0.0
     frame_consistency: float = 0.0
+    humans_detected_count: int = 0
     humans_nearby_count: int = 0
     fire_area_ratio: float = 0.0
     smoke_area_ratio: float = 0.0

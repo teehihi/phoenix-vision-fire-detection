@@ -143,6 +143,13 @@ Sau khi tải xong, đặt file vào đúng đường dẫn:
 ai-service/models/fire.pt
 ```
 
+Lưu ý về nhận diện người:
+
+- `fire.pt` là model custom của dự án để nhận diện `fire` và `smoke`.
+- `yolo11n.pt` là model YOLOv11 nano mặc định dùng để nhận diện `person`.
+- Không cần commit `yolo11n.pt` vào GitHub. Khi chạy lần đầu với `--person-model yolo11n.pt`, Ultralytics sẽ tự tải lại model này nếu máy chưa có.
+- Vì vậy repo chỉ cần hướng dẫn tên model `yolo11n.pt`, không cần lưu sẵn file đó.
+
 ## 3️⃣ Chạy dịch vụ AI realtime webcam
 
 Trên macOS:
@@ -230,10 +237,6 @@ Xem hướng dẫn đầy đủ cho macOS và Windows tại [docs/setup-guide.md
 
 - [Hướng dẫn cài đặt và chạy dự án](docs/setup-guide.md)
 - [Hướng dẫn chuẩn bị dataset và train YOLO](docs/training-guide.md)
-- [Thiết kế phân tích rủi ro cháy realtime](docs/risk-analysis.md)
-- [Thiết kế hệ thống phản ứng khẩn cấp](docs/emergency-response.md)
-- [Thiết kế incident timeline chuyên nghiệp](docs/incident-timeline.md)
-- [Kiến trúc realtime WebSocket streaming](docs/realtime-communication.md)
 - [Kiến trúc hệ thống](docs/architecture.md)
 
 ---

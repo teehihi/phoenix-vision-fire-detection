@@ -1,5 +1,7 @@
+import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle, Bell, CheckCircle2, Flame, ShieldCheck, Siren } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { EmergencyOverlay } from '../../components/effects/CinematicEffects';
 import { getEmergencyStatus } from '../../lib/apiClient';
 import type { EmergencyState, EmergencyStatus } from '../../types/detection';
 import { useEmergencyTone } from '../../hooks/useEmergencyTone';
@@ -68,12 +70,21 @@ export function EmergencyPanel({ compact = false }: EmergencyPanelProps) {
   const Icon = style.icon;
 
   return (
-    <section className={`rounded-lg border p-5 shadow-sm ${style.className}`}>
+    <motion.section
+      className={`relative overflow-hidden rounded-lg border p-5 shadow-sm ${style.className}`}
+      animate={state === 'emergency' || state === 'critical' ? { scale: [1, 1.006, 1] } : { scale: 1 }}
+      transition={{ duration: 1.2, repeat: state === 'emergency' || state === 'critical' ? Infinity : 0, ease: 'easeInOut' }}
+    >
+      <AnimatePresence>{state === 'emergency' || state === 'critical' ? <EmergencyOverlay /> : null}</AnimatePresence>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-start gap-3">
-          <div className="rounded-md bg-white/70 p-2 text-current">
+          <motion.div
+            className="rounded-md bg-white/70 p-2 text-current"
+            animate={state === 'monitoring' ? { rotate: 0 } : { rotate: [0, -4, 4, 0] }}
+            transition={{ duration: 1.1, repeat: state === 'monitoring' ? 0 : Infinity, ease: 'easeInOut' }}
+          >
             <Icon size={22} />
-          </div>
+          </motion.div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide opacity-75">Emergency state</p>
             <h2 className="text-2xl font-semibold">{style.label}</h2>
@@ -83,13 +94,15 @@ export function EmergencyPanel({ compact = false }: EmergencyPanelProps) {
           </div>
         </div>
 
-        <button
+        <motion.button
+          whileTap={{ scale: 0.96 }}
+          whileHover={{ y: -1 }}
           className="inline-flex items-center gap-2 rounded-md bg-white/80 px-3 py-2 text-sm font-medium text-slate-900 hover:bg-white"
           onClick={() => setSoundEnabled((value) => !value)}
         >
           <Bell size={16} />
           {soundEnabled ? 'Tắt âm báo' : 'Bật âm báo'}
-        </button>
+        </motion.button>
       </div>
 
       {!compact ? (
@@ -108,7 +121,7 @@ export function EmergencyPanel({ compact = false }: EmergencyPanelProps) {
       ) : null}
 
       {error ? <p className="mt-3 text-sm font-medium text-red-700">{error}</p> : null}
-    </section>
+    </motion.section>
   );
 }
 

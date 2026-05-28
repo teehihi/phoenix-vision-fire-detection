@@ -60,6 +60,13 @@ Trước khi chạy, tải model fire/smoke đã train:
 ai-service/models/fire.pt
 ```
 
+Về model nhận diện người:
+
+- `models/fire.pt` nhận diện `fire` và `smoke`.
+- `yolo11n.pt` nhận diện `person`.
+- File `yolo11n.pt` không cần lưu trong repository. Ultralytics sẽ tự tải model này khi chạy lần đầu nếu chưa có trên máy.
+- Vì vậy lệnh chạy vẫn dùng `--person-model yolo11n.pt`.
+
 Test nhanh với model fire đã train:
 
 ```bash
@@ -208,8 +215,6 @@ Stream frame đã xử lý cho React dashboard:
 ```text
 ws://localhost:8001/api/stream/webcam?fps=12&quality=72
 ```
-
-Xem thêm tại [../docs/realtime-communication.md](../docs/realtime-communication.md).
 
 ## Cấu Hình
 

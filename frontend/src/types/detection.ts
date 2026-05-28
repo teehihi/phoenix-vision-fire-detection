@@ -14,6 +14,7 @@ export type RealtimeRiskPayload = {
   humanAtRisk: boolean;
   durationSeconds: number;
   frameConsistency: number;
+  humansDetectedCount?: number;
   humansNearbyCount: number;
   fireDetected?: boolean;
   smokeDetected?: boolean;
