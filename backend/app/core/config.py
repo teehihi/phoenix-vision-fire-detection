@@ -1,4 +1,8 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
@@ -6,8 +10,17 @@ class Settings(BaseSettings):
     ai_service_url: str = "http://localhost:8100"
     alert_confidence_threshold: float = 0.65
     cors_origins: list[str] = ["http://localhost:5173"]
+    otp_secret: str = "phoenixvision-dev-otp-secret"
+    otp_expire_minutes: int = 5
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_name: str = "PhoenixVision"
+    smtp_from_email: str = ""
+    smtp_use_tls: bool = True
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=BACKEND_ROOT / ".env", env_file_encoding="utf-8", extra="ignore")
 
 
 settings = Settings()

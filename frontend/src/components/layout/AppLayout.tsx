@@ -1,7 +1,8 @@
-import { ChevronLeft, ChevronRight, Flame, History, LayoutDashboard, Siren } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Flame, History, LayoutDashboard, LogOut, Siren } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import { useAuth } from '../../features/auth/AuthContext';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -11,6 +12,7 @@ const navItems = [
 ];
 
 export function AppLayout() {
+  const { user, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [toggleTop, setToggleTop] = useState(44);
 
@@ -64,6 +66,26 @@ export function AppLayout() {
             </NavLink>
           ))}
         </nav>
+
+        <div className="absolute inset-x-4 bottom-5">
+          {!collapsed ? (
+            <div className="mb-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <p className="truncate text-xs font-semibold text-slate-500">Tài khoản</p>
+              <p className="mt-1 truncate text-sm font-semibold text-slate-900">{user?.email}</p>
+            </div>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => logout()}
+            title={collapsed ? 'Đăng xuất' : undefined}
+            className={`flex w-full items-center rounded-md py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 ${
+              collapsed ? 'justify-center px-0' : 'gap-3 px-3'
+            }`}
+          >
+            <LogOut size={collapsed ? 20 : 18} />
+            {!collapsed ? <span>Đăng xuất</span> : null}
+          </button>
+        </div>
       </aside>
       <main className={`transition-all duration-300 ${collapsed ? 'md:pl-20' : 'md:pl-64'}`}>
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">

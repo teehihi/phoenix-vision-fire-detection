@@ -65,3 +65,17 @@ export async function sendFrameForDetection(frame: Blob, cameraId: string) {
 
   return response.data;
 }
+
+export async function requestRegistrationOtp(email: string) {
+  const response = await api.post<{ challenge_token: string; expires_in_seconds: number }>('/auth/registration-otp', { email });
+  return response.data;
+}
+
+export async function verifyRegistrationOtp(email: string, otp: string, challengeToken: string) {
+  const response = await api.post<{ verified: boolean }>('/auth/registration-otp/verify', {
+    email,
+    otp,
+    challenge_token: challengeToken
+  });
+  return response.data;
+}
