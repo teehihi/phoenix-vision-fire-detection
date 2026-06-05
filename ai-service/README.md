@@ -1,109 +1,101 @@
-# Dịch Vụ AI - Phát Hiện Realtime Từ Webcam
+# AI Service - Realtime Fire Detection
 
-Dịch vụ này dùng Python, OpenCV và YOLO để phát hiện object từ webcam theo thời gian thực.
+AI service dùng Python, OpenCV và Ultralytics YOLO để detect frame từ webcam, API hoặc WebSocket stream.
 
-Tính năng:
+## Vai Trò
 
-- Nhận dữ liệu đầu vào từ webcam
-- Chạy YOLO inference realtime
-- Vẽ bounding boxes
-- Hiển thị nhãn và confidence
-- Hiển thị bộ đếm FPS
-- Tối ưu độ trễ bằng camera buffer thấp
-- Hỗ trợ macOS, Windows và Linux
+- Load model `models/fire.pt` để detect `fire` và `smoke`.
+- Dùng `yolo11n.pt` để detect `person`; file này không commit, Ultralytics tự tải khi cần và máy có internet.
+- Cung cấp realtime webcam runner bằng OpenCV.
+- Cung cấp FastAPI endpoint và WebSocket stream cho các client khác.
+- Chia sẻ pipeline detection cho `desktop-app`.
 
-## Cài Đặt Trên macOS
+## Cài Đặt
 
-Khuyến nghị dùng Python 3.12.
+macOS/Linux:
 
 ```bash
-cd phoenix-vision-fire-detection/ai-service
+cd ai-service
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Nếu chưa có Python 3.12 trên macOS:
-
-```bash
-brew install python@3.12
-```
-
-Nếu không dùng venv và máy đã cài package bằng Python hiện tại, có thể chạy bằng `python3`.
-
-## Cài Đặt Trên Windows
-
-Mở PowerShell:
+Windows PowerShell:
 
 ```powershell
-cd phoenix-vision-fire-detection\ai-service
+cd ai-service
 py -3.12 -m venv .venv
 .\.venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Nếu chưa có Python 3.12, tải từ trang Python chính thức hoặc cài bằng winget:
-
-```powershell
-winget install Python.Python.3.12
-```
-
-## Chạy Phát Hiện Từ Webcam Trên macOS
-
-Trước khi chạy, tải model fire/smoke đã train:
-
-[Tải fire.pt từ Google Drive](https://drive.google.com/file/d/12ZUgw6NmtuVrUQHK-4-Qq5Xams-QI83_/view?usp=sharing)
-
-Đặt file vào thư mục có sẵn:
+Repo đã commit sẵn:
 
 ```text
-ai-service/models/fire.pt
+models/fire.pt
 ```
 
-Về model nhận diện người:
+Nếu train model mới, thay file này bằng weight mới.
 
-- `models/fire.pt` nhận diện `fire` và `smoke`.
-- `yolo11n.pt` nhận diện `person`.
-- File `yolo11n.pt` không cần lưu trong repository. Ultralytics sẽ tự tải model này khi chạy lần đầu nếu chưa có trên máy.
-- Vì vậy lệnh chạy vẫn dùng `--person-model yolo11n.pt`.
+## Chạy Webcam Runner
 
-Test nhanh với model fire đã train:
-
-```bash
-python3 -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
-```
-
-Nếu đã active venv:
+macOS/Linux:
 
 ```bash
 python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
 ```
 
-Chạy với model fire riêng:
+Windows PowerShell:
 
-```bash
+```powershell
 python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
 ```
 
-Các tham số hữu ích để giảm false positive:
+Nếu camera `0` không mở được, thử:
+
+```bash
+python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 1
+```
+
+Thoát OpenCV window bằng `q` hoặc `Esc`.
+
+Tham số giảm false positive:
 
 ```bash
 python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0 --fire-conf 0.65 --smoke-conf 0.60 --stable-frames 4
 ```
 
-Khi `fire/smoke` xuất hiện và có `person` nằm gần vùng nguy hiểm, hệ thống sẽ đánh dấu `HUMAN AT RISK` và tính mức rủi ro realtime.
+Khi có `fire/smoke` và `person` gần vùng nguy hiểm, pipeline sẽ đánh dấu rủi ro `HUMAN AT RISK`.
 
-Nhấn `q` hoặc `Esc` để thoát.
+## Chạy API
 
-## Chuẩn Bị Dataset Và Train Model
+```bash
+uvicorn app.main:app --reload --port 8100
+```
 
-Tải dataset indoor từ Kaggle và gom về cấu trúc YOLO chuẩn:
+Kiểm tra:
+
+```bash
+curl http://localhost:8100/health
+```
+
+Endpoint chính:
+
+```text
+POST /api/detect/frame
+ws://localhost:8100/api/stream/webcam?fps=12&quality=72
+```
+
+## Train Model
+
+Chuẩn bị dataset:
 
 ```bash
 python -m app.training.prepare_dataset --download-indoor
 ```
 
-Train model YOLOv11 nhẹ cho webcam realtime:
+Train YOLOv11 nano:
 
 ```bash
 python -m app.training.train_yolo \
@@ -114,107 +106,13 @@ python -m app.training.train_yolo \
   --batch 8
 ```
 
-Sau khi train xong, script sẽ copy model tốt nhất về:
+Sau khi train xong, script copy best weight về:
 
 ```text
 models/fire.pt
 ```
 
-Xem hướng dẫn đầy đủ tại [../docs/training-guide.md](../docs/training-guide.md).
-
-## Chạy Phát Hiện Từ Webcam Trên Windows
-
-Nếu đã active venv:
-
-```powershell
-python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
-```
-
-Chạy với model fire riêng:
-
-```powershell
-python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
-```
-
-Nếu camera `0` không hoạt động:
-
-```powershell
-python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 1
-```
-
-Nhấn `q` hoặc `Esc` để thoát.
-
-## Cơ Chế Camera Theo Hệ Điều Hành
-
-Code tự chọn cơ chế camera OpenCV phù hợp:
-
-- macOS: AVFoundation, sau đó fallback generic
-- Windows: DirectShow, sau đó Media Foundation, sau đó fallback generic
-- Linux: V4L2, sau đó fallback generic
-
-Nếu camera `0` không hoạt động:
-
-```bash
-python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 1
-```
-
-## Quyền Camera Trên macOS
-
-Nếu gặp lỗi không được quyền mở camera:
-
-```text
-OpenCV: not authorized to capture video
-```
-
-Mở:
-
-```text
-System Settings -> Privacy & Security -> Camera
-```
-
-Bật quyền cho Terminal, iTerm hoặc VS Code. Sau đó đóng terminal và mở lại.
-
-## Quyền Camera Trên Windows
-
-Nếu Windows không cho mở webcam, vào:
-
-```text
-Settings -> Privacy & security -> Camera
-```
-
-Bật quyền camera cho desktop apps hoặc app terminal đang dùng.
-
-## Chạy Dạng API
-
-Ngoài realtime webcam runner, service cũng có FastAPI endpoint:
-
-```bash
-uvicorn app.main:app --reload --port 8001
-```
-
-Trên Windows cũng dùng lệnh tương tự sau khi active venv:
-
-```powershell
-uvicorn app.main:app --reload --port 8001
-```
-
-Kiểm tra:
-
-```bash
-curl http://localhost:8001/health
-```
-
-Detect frame qua API:
-
-```text
-POST /api/detect/frame
-```
-
-Stream frame đã xử lý cho React dashboard:
-
-```text
-ws://localhost:8001/api/stream/webcam?fps=12&quality=72
-```
+Xem chi tiết tại [../docs/training-guide.md](../docs/training-guide.md).
 
 ## Cấu Hình
 
@@ -230,10 +128,10 @@ CAMERA_HEIGHT=720
 CAMERA_FPS=30
 ```
 
-## Tối Ưu Độ Trễ Thấp
+## Camera
 
-- `CAP_PROP_BUFFERSIZE = 1` để tránh đọc frame cũ.
-- Ưu tiên backend camera native theo hệ điều hành.
-- Dùng `imgsz` cố định để kiểm soát thời gian inference.
-- Vẽ overlay trực tiếp trên frame hiện tại.
-- Bộ đếm FPS dùng rolling window, không log nặng từng frame.
+- macOS: AVFoundation, fallback generic.
+- Windows: DirectShow, Media Foundation, fallback generic.
+- Linux: V4L2, fallback generic.
+
+Nếu gặp lỗi quyền camera, bật quyền cho Terminal, iTerm, VS Code hoặc PowerShell trong system settings của hệ điều hành.

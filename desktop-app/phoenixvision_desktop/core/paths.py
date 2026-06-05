@@ -10,7 +10,7 @@ AI_SERVICE_DIR = ROOT_DIR / "ai-service"
 CACHE_DIR = ROOT_DIR / ".cache"
 FIRE_MODEL = AI_SERVICE_DIR / "models" / "fire.pt"
 PERSON_MODEL = AI_SERVICE_DIR / "models" / "yolo11n.pt"
-LOGO_LANDSCAPE = ROOT_DIR / "frontend" / "public" / "PhoenixLogoLandscape.png"
+LOGO_LANDSCAPE = ROOT_DIR / "desktop-app" / "assets" / "PhoenixLogoLandscape.png"
 
 
 def configure_runtime_paths() -> None:

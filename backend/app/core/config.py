@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     project_name: str = "AI Fire Detection API"
     ai_service_url: str = "http://localhost:8100"
     alert_confidence_threshold: float = 0.65
-    cors_origins: list[str] = ["http://localhost:5173"]
+    cors_origins: list[str] = []
     otp_secret: str = "phoenixvision-dev-otp-secret"
     otp_expire_minutes: int = 5
     smtp_host: str = ""

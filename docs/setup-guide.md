@@ -1,187 +1,113 @@
 # Hướng Dẫn Cài Đặt Và Chạy Dự Án
 
-Tài liệu này hướng dẫn chạy hệ thống AI Fire Detection trên macOS và Windows.
+Tài liệu này mô tả cách chạy PhoenixVision theo cấu trúc hiện tại: `desktop-app` là giao diện chính, `ai-service` xử lý YOLO/OpenCV và `backend` phục vụ API nghiệp vụ.
 
 ## Yêu Cầu Môi Trường
 
-Cài trước:
+- Python 3.12 khuyến nghị cho backend, AI service và desktop app.
+- Webcam hoạt động.
+- macOS, Windows hoặc Linux.
+- Internet trong lần đầu detect người nếu máy chưa có `yolo11n.pt`.
 
-- Node.js 20 trở lên
-- Python 3.12 khuyến nghị cho backend và AI service
-- Webcam hoạt động
-- macOS, Windows hoặc Linux
-
-Kiểm tra phiên bản trên macOS:
+Kiểm tra Python:
 
 ```bash
-node -v
-npm -v
 python3 --version
 ```
 
-Kiểm tra phiên bản trên Windows PowerShell:
+Windows PowerShell:
 
 ```powershell
-node -v
-npm -v
 py --version
 ```
 
-Lưu ý: AI service ổn định nhất với Python 3.12. Nếu macOS đang dùng Python 3.13, có thể gặp lỗi dependency với NumPy/Ultralytics.
-
 ## 0. Clone Repository
 
-Trên macOS:
-
 ```bash
 git clone https://github.com/teehihi/phoenix-vision-fire-detection.git
 cd phoenix-vision-fire-detection
 ```
 
-Trên Windows PowerShell:
+Repo đã commit sẵn `ai-service/models/fire.pt`, vì vậy clone về là có model fire/smoke custom. `yolo11n.pt` không nằm trong repo; Ultralytics sẽ tự tải khi app cần detect người.
+
+## 1. Chạy Desktop App
+
+Đây là cách chạy chính của dự án hiện tại.
+
+macOS/Linux:
+
+```bash
+cd desktop-app
+python run.py
+```
+
+Windows PowerShell:
 
 ```powershell
-git clone https://github.com/teehihi/phoenix-vision-fire-detection.git
-cd phoenix-vision-fire-detection
+cd desktop-app
+python run.py
 ```
 
-Các phần bên dưới giả định terminal đang đứng tại thư mục gốc `phoenix-vision-fire-detection`. Khi mở terminal mới, hãy `cd` lại vào thư mục gốc repository trước.
+`run.py` sẽ tự tạo `.venv` riêng trong `desktop-app/.venv` nếu thiếu PySide6, OpenCV hoặc Ultralytics, sau đó cài dependency từ `desktop-app/requirements.txt` và mở app.
 
-## 1. Chạy Dịch Vụ AI Realtime Webcam Trên macOS
+Trong app:
 
-Vào thư mục AI service:
+1. Chọn camera index, mặc định là `0`.
+2. Bấm `Start` để bắt đầu stream.
+3. Nếu camera `0` không mở được, thử camera `1`.
 
-```bash
-cd ai-service
-```
+Model được dùng:
 
-Tạo môi trường ảo bằng Python 3.12 nếu máy có sẵn:
+- Fire/smoke: `ai-service/models/fire.pt`.
+- Person: `yolo11n.pt`, tự tải khi chưa có local file và máy có internet.
 
-```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+## 2. Quyền Camera
 
-Tải model fire/smoke đã train:
-
-[Tải fire.pt từ Google Drive](https://drive.google.com/file/d/12ZUgw6NmtuVrUQHK-4-Qq5Xams-QI83_/view?usp=sharing)
-
-Repository đã có sẵn thư mục `ai-service/models/`. Sau khi tải xong, đặt file vào:
-
-```text
-ai-service/models/fire.pt
-```
-
-Trong dự án có hai loại model:
-
-- `models/fire.pt`: model custom đã train để nhận diện `fire` và `smoke`, cần tải từ Google Drive.
-- `yolo11n.pt`: model YOLOv11 nano dùng để nhận diện `person`, không cần tải thủ công. Khi chạy lần đầu, Ultralytics sẽ tự tải nếu máy chưa có.
-
-Nếu máy chưa có `python3.12`, trên macOS có thể cài:
-
-```bash
-brew install python@3.12
-```
-
-Nếu bạn muốn chạy nhanh bằng Python hiện tại:
-
-```bash
-python3 -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
-```
-
-Nếu đã active venv:
-
-```bash
-python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
-```
-
-Lệnh trên dùng model fire đã train tại `models/fire.pt`. Hãy tải file `fire.pt` từ Google Drive về `ai-service/models/fire.pt` trước khi chạy.
-
-Nếu có model phát hiện lửa riêng, đặt file tại:
-
-```text
-ai-service/models/fire.pt
-```
-
-Rồi chạy:
-
-```bash
-python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
-```
-
-Thoát cửa sổ webcam bằng phím `q` hoặc `Esc`.
-
-### Quyền Camera Trên macOS
-
-Nếu gặp lỗi:
-
-```text
-OpenCV: not authorized to capture video
-Unable to open webcam index 0
-```
-
-Mở:
+macOS:
 
 ```text
 System Settings -> Privacy & Security -> Camera
 ```
 
-Bật quyền camera cho app đang chạy lệnh, ví dụ Terminal, iTerm hoặc VS Code. Sau đó tắt terminal và mở lại.
+Bật quyền camera cho Terminal, iTerm hoặc VS Code.
 
-Nếu camera `0` không mở được, thử:
-
-```bash
-python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 1
-```
-
-## 2. Chạy Dịch Vụ AI Realtime Webcam Trên Windows
-
-Mở PowerShell tại thư mục dự án, sau đó vào `ai-service`:
-
-```powershell
-cd ai-service
-```
-
-Nếu đang ở ngoài thư mục repository, hãy vào `phoenix-vision-fire-detection` trước rồi mới chạy lệnh trên.
-
-Tạo môi trường ảo bằng Python 3.12:
-
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-Chạy test webcam với model fire đã train:
-
-```powershell
-python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
-```
-
-Nếu camera `0` không được:
-
-```powershell
-python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 1
-```
-
-Nếu Windows hỏi quyền camera, vào:
+Windows:
 
 ```text
 Settings -> Privacy & security -> Camera
 ```
 
-Bật quyền camera cho desktop apps hoặc ứng dụng terminal bạn đang dùng.
+Bật quyền camera cho desktop apps hoặc terminal đang chạy.
 
-Code tự chọn backend camera phù hợp:
+## 3. Chạy AI Webcam Runner Riêng
 
-- macOS: AVFoundation
-- Windows: DirectShow, sau đó Media Foundation
-- Linux: V4L2
+Dùng khi muốn test OpenCV window trực tiếp, không cần mở desktop UI.
 
-## 3. Chạy Máy Chủ API Trên macOS
+macOS/Linux:
 
-Mở terminal mới:
+```bash
+cd ai-service
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
+```
+
+Windows PowerShell:
+
+```powershell
+cd ai-service
+py -3.12 -m venv .venv
+.\.venv\Scripts\activate
+pip install -r requirements.txt
+python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
+```
+
+Thoát OpenCV window bằng phím `q` hoặc `Esc`.
+
+## 4. Chạy Backend API
+
+macOS/Linux:
 
 ```bash
 cd backend
@@ -191,7 +117,17 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-Kiểm tra backend:
+Windows PowerShell:
+
+```powershell
+cd backend
+py -3.12 -m venv .venv
+.\.venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+
+Kiểm tra:
 
 ```bash
 curl http://localhost:8000/health
@@ -203,210 +139,97 @@ Kết quả mong đợi:
 {"status":"ok"}
 ```
 
-## 4. Chạy Máy Chủ API Trên Windows
+## 5. Chạy AI Service API
 
-Mở PowerShell mới:
+Dùng khi cần gọi endpoint detection hoặc WebSocket stream.
 
-```powershell
-cd backend
-py -3.12 -m venv .venv
-.\.venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-```
-
-Kiểm tra backend:
-
-```powershell
-curl http://localhost:8000/health
-```
-
-Các API chính:
-
-```text
-GET  /api/v1/detections
-POST /api/v1/detections/frame
-GET  /api/v1/alerts
-```
-
-## 5. Chạy API Của Dịch Vụ AI
-
-Realtime webcam runner ở bước 1 là cách test trực tiếp nhất. Nếu muốn chạy AI service dưới dạng API/WebSocket để dashboard React nhận frame đã xử lý:
-
-Trên macOS:
+macOS/Linux:
 
 ```bash
 cd ai-service
 source .venv/bin/activate
-uvicorn app.main:app --reload --port 8001
+uvicorn app.main:app --reload --port 8100
 ```
 
-Trên Windows:
+Windows PowerShell:
 
 ```powershell
 cd ai-service
 .\.venv\Scripts\activate
-uvicorn app.main:app --reload --port 8001
+uvicorn app.main:app --reload --port 8100
 ```
 
 Kiểm tra:
 
 ```bash
-curl http://localhost:8001/health
+curl http://localhost:8100/health
 ```
 
-Dashboard trang Live Detection sẽ kết nối WebSocket tới:
+WebSocket webcam stream:
 
 ```text
-ws://localhost:8001/api/stream/webcam?fps=12&quality=72
+ws://localhost:8100/api/stream/webcam?fps=12&quality=72
 ```
 
-## 6. Chạy Dashboard Giao Diện Trên macOS
+## 6. Docker Compose
 
-Mở terminal mới:
+Docker Compose hiện build backend và AI service. Desktop UI nên chạy trực tiếp trên máy host để truy cập camera tốt hơn.
 
 ```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Mở trình duyệt:
-
-```text
-http://localhost:5173
-```
-
-## 7. Chạy Dashboard Giao Diện Trên Windows
-
-Mở PowerShell mới:
-
-```powershell
-cd frontend
-npm install
-npm run dev
-```
-
-Mở trình duyệt:
-
-```text
-http://localhost:5173
-```
-
-Các trang chính:
-
-- Dashboard: tổng quan camera, detection, alert
-- Live Detection: giao diện webcam
-- History: lịch sử phát hiện
-- Alerts: cảnh báo
-
-## 8. Chạy Bằng Docker Compose
-
-Nếu muốn chạy cả hệ thống bằng Docker:
-
-Trên macOS:
-
-```bash
-cd phoenix-vision-fire-detection
 docker compose up --build
 ```
 
-Trên Windows:
-
-```powershell
-cd phoenix-vision-fire-detection
-docker compose up --build
-```
-
-Các cổng mặc định:
+Cổng mặc định:
 
 ```text
-Giao diện:    http://localhost:5173
-Máy chủ API:  http://localhost:8000
-Dịch vụ AI:   http://localhost:8001
+Backend API: http://localhost:8000
+AI service:  http://localhost:8100
 ```
 
-Lưu ý: Docker thường không truy cập webcam local dễ như chạy Python trực tiếp. Để test realtime webcam, nên chạy `python -m app.realtime_webcam` trực tiếp trên máy.
+Lưu ý: Docker trên desktop không phải lúc nào cũng truy cập webcam local dễ dàng, nên để demo realtime nên dùng `desktop-app/run.py` hoặc `ai-service/app.realtime_webcam`.
 
-## Test Nhanh
+## 7. Test Nhanh
 
-Kiểm tra cú pháp Python trên macOS:
+Compile Python:
 
 ```bash
-cd phoenix-vision-fire-detection
-python3 -m compileall backend ai-service
+python3 -m compileall backend ai-service desktop-app
 ```
 
-Kiểm tra cú pháp Python trên Windows:
-
-```powershell
-cd phoenix-vision-fire-detection
-py -3.12 -m compileall backend ai-service
-```
-
-Test webcam với model fire đã train trên macOS:
+Kiểm tra desktop app parse đường dẫn model:
 
 ```bash
-cd ai-service
-python3 -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
-```
-
-Test webcam với model fire đã train trên Windows:
-
-```powershell
-cd ai-service
-python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
-```
-
-Test frontend build trên macOS hoặc Windows:
-
-```bash
-cd frontend
-npm run build
+cd desktop-app
+python run.py
 ```
 
 ## Lỗi Thường Gặp
 
 `zsh: command not found: python`
 
-Bạn chưa active venv hoặc máy chỉ có `python3`. Dùng:
-
-```bash
-python3 -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
-```
-
-`source: no such file or directory: .venv/bin/activate`
-
-Bạn chưa tạo venv trên macOS. Tạo lại:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-Trên Windows, lệnh active venv là:
-
-```powershell
-.\.venv\Scripts\activate
-```
+Dùng `python3` thay cho `python`, hoặc cài Python 3.12.
 
 `Unable to open webcam index 0`
 
-Kiểm tra quyền camera hoặc thử camera khác:
+Kiểm tra quyền camera hoặc đổi camera index sang `1`.
 
-```bash
-python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 1
+`Cannot find fire model`
+
+Kiểm tra file:
+
+```text
+ai-service/models/fire.pt
 ```
 
-Trên Windows:
+File này đã được commit trong repo hiện tại. Nếu bị xoá local, checkout lại từ git.
 
-```powershell
-python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 1
-```
+`yolo11n.pt download failed`
+
+Máy đang không có internet hoặc Ultralytics không tải được model person. Fire/smoke model vẫn có sẵn, nhưng detect person sẽ bị tắt nếu model person lỗi.
 
 `Cannot install numpy... ultralytics...`
 
-Dùng Python 3.12 trên macOS:
+Dùng Python 3.12:
 
 ```bash
 python3.12 -m venv .venv
@@ -414,7 +237,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Dùng Python 3.12 trên Windows:
+Windows:
 
 ```powershell
 py -3.12 -m venv .venv

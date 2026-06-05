@@ -17,12 +17,3 @@ services:
       - DETECTION_CONFIDENCE=0.45
     volumes:
       - ./ai-service/models:/app/models
-
-  frontend:
-    build: ./frontend
-    ports:
-      - "5173:5173"
-    environment:
-      - VITE_API_BASE_URL=http://localhost:8000/api/v1
-    depends_on:
-      - backend

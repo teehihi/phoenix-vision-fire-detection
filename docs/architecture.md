@@ -3,100 +3,102 @@
 ## Luồng Xử Lý Tổng Quan
 
 ```text
-Webcam trên trình duyệt hoặc webcam local
-  -> Giao diện phát hiện realtime
-  -> Dịch vụ AI xử lý /detect/frame hoặc runner webcam realtime
-  -> Máy chủ API lưu sự kiện phát hiện
-  -> Dịch vụ cảnh báo đánh giá mức độ nghiêm trọng
-  -> Dashboard, lịch sử và cảnh báo hiển thị trạng thái mới nhất
+Webcam local
+  -> desktop-app/run.py
+  -> PySide6 UI đọc frame camera
+  -> ai-service YOLO detector phân tích fire/smoke/person
+  -> danger analysis tính risk level
+  -> desktop app hiển thị frame, bounding boxes, timeline và trạng thái rủi ro
 ```
 
-## Giao Diện Người Dùng
+Backend và AI service API vẫn được giữ để mở rộng thành kiến trúc service:
 
-`frontend/src/app`
-: Khởi tạo khung ứng dụng và cấu hình provider cấp ứng dụng.
+```text
+Camera/frame source
+  -> ai-service FastAPI/WebSocket
+  -> backend FastAPI lưu detection, alert, emergency, incident timeline
+  -> client hiển thị hoặc hệ thống cảnh báo tiêu thụ sự kiện
+```
 
-`frontend/src/routes`
-: Khai báo route cho dashboard, phát hiện realtime, cảnh báo và lịch sử.
+## Giao Diện Desktop
 
-`frontend/src/components`
-: Chứa component dùng chung và component theo tính năng. Các component layout được tách riêng khỏi widget nghiệp vụ.
+`desktop-app/run.py`
+: Entry point chính. Script cấu hình import path, tạo `.venv` riêng nếu thiếu dependency, cài requirements và chạy app.
 
-`frontend/src/features`
-: Chứa module theo từng tính năng. Mỗi module quản lý bố cục trang, state cục bộ và lời gọi API cho nghiệp vụ tương ứng.
+`desktop-app/phoenixvision_desktop/main.py`
+: Parse tham số camera/model/confidence và khởi tạo QApplication.
 
-`frontend/src/hooks`
-: Chứa hook tái sử dụng cho các tích hợp trình duyệt như truy cập webcam hoặc polling.
+`desktop-app/phoenixvision_desktop/views`
+: Chứa cửa sổ chính và workflow UI.
 
-`frontend/src/lib`
-: Chứa API client, hằng số và helper định dạng dữ liệu.
+`desktop-app/phoenixvision_desktop/widgets`
+: Chứa sidebar, camera card và inspector panel.
 
-`frontend/src/types`
-: Chứa TypeScript DTO tương ứng với schema trong `shared/contracts`.
+`desktop-app/phoenixvision_desktop/workers`
+: Chứa worker đọc camera/detect frame trên thread riêng để UI không bị đứng.
 
-## Máy Chủ API
+`desktop-app/phoenixvision_desktop/core`
+: Chứa path runtime, model UI, style và adapter detection realtime.
 
-`backend/app/api`
-: Chứa FastAPI router. Tầng này chỉ nên xử lý HTTP request/response.
-
-`backend/app/services`
-: Chứa workflow nghiệp vụ như tạo lịch sử phát hiện, kích hoạt cảnh báo và gọi AI service.
-
-`backend/app/repositories`
-: Chứa lớp trừu tượng lưu trữ dữ liệu. Hiện tại dùng in-memory storage, có thể thay bằng PostgreSQL hoặc database khác sau này.
-
-`backend/app/models`
-: Chứa model nghiệp vụ nội bộ của máy chủ API.
-
-`backend/app/schemas`
-: Chứa Pydantic schema cho request và response.
-
-`backend/app/core`
-: Chứa cấu hình hệ thống, CORS, logging và dependency chung.
-
-`backend/app/workers`
-: Dành cho tác vụ nền như gửi thông báo, dọn sự kiện cũ hoặc giám sát camera.
+`desktop-app/assets`
+: Chứa asset cần thiết cho desktop app, vì `frontend/` không còn nằm trong `main`.
 
 ## Dịch Vụ AI
 
 `ai-service/app/models`
-: Chứa adapter cho YOLO model và cấu trúc dữ liệu phục vụ inference.
+: Adapter cho Ultralytics YOLO.
 
 `ai-service/app/pipelines`
-: Chứa pipeline xử lý frame, vẽ bounding boxes, annotation và hậu xử lý kết quả.
+: Xử lý frame, temporal smoothing và phân tích nguy hiểm.
 
 `ai-service/app/streams`
-: Chứa logic mở webcam/video bằng OpenCV và đọc frame realtime.
+: Mở webcam/video bằng OpenCV và đọc frame realtime.
 
 `ai-service/app/services`
 : Điều phối detection để API route và runner realtime có thể dùng lại.
 
 `ai-service/app/api`
-: Chứa FastAPI endpoint cho health check và detect frame.
+: FastAPI endpoint cho health check, detection và stream.
 
 `ai-service/models`
-: Chứa model weights local, ví dụ `fire.pt`. Thư mục này không commit model thật lên git.
+: Chứa model weights. `fire.pt` được commit để clone về chạy được ngay; `yolo11n.pt` không commit vì Ultralytics tự tải khi cần.
 
-## Chiến Lược Webcam Realtime
+## Backend API
 
-Dự án có hai hướng realtime:
+`backend/app/api`
+: FastAPI router, chỉ xử lý HTTP request/response.
 
-- Chạy trực tiếp bằng OpenCV local qua `python -m app.realtime_webcam`.
-- Gửi frame từ giao diện hoặc máy chủ API tới dịch vụ AI qua HTTP API.
+`backend/app/services`
+: Workflow nghiệp vụ như tạo detection event, emergency event và alert.
 
-Với môi trường production cần độ trễ thấp hơn, có thể bổ sung WebSocket stream giữa giao diện và dịch vụ AI, sau đó chỉ gửi detection event đã xác nhận về máy chủ API.
+`backend/app/repositories`
+: Lớp lưu trữ dữ liệu hiện dùng in-memory storage, có thể thay bằng database thật.
 
-## Module Lịch Sử Phát Hiện
+`backend/app/models`
+: Model nghiệp vụ nội bộ.
 
-Lịch sử phát hiện chuẩn hoá output từ dịch vụ AI thành các event gồm camera ID, nhãn, confidence, bounding boxes, severity, thời gian tạo và snapshot URL nếu có.
+`backend/app/schemas`
+: Pydantic schema cho request/response.
 
-## Module Cảnh Báo
+`backend/app/core`
+: Cấu hình hệ thống, CORS và dependency chung.
 
-Module cảnh báo chuyển detection thành sự cố có thể xử lý. Khi confidence vượt ngưỡng cấu hình, máy chủ API có thể tạo cảnh báo, gán severity và sau này mở rộng sang email, SMS, push notification hoặc kênh vận hành nội bộ.
+`backend/app/workers`
+: Cho tác vụ nền như gửi thông báo hoặc giám sát camera về sau.
 
-## Nguyên Tắc Mở Rộng
+## Docker Compose
 
-- Giao diện chỉ quản lý trải nghiệm người dùng và gọi API.
-- Máy chủ API giữ nghiệp vụ, lịch sử, cảnh báo và tích hợp service.
-- Dịch vụ AI chỉ tập trung vào xử lý ảnh, webcam, YOLO inference và tối ưu độ trễ.
-- Contract dùng chung nên được đặt trong `shared/contracts` để tránh lệch dữ liệu giữa các service.
+`docker-compose.yml` hiện build:
+
+- `backend` tại cổng `8000`.
+- `ai-service` tại cổng `8100`.
+
+Desktop UI không chạy trong Docker vì cần truy cập camera host và hiển thị cửa sổ native.
+
+## Chiến Lược Mở Rộng
+
+- Desktop app là FE chính trong `main`.
+- AI service tập trung vào xử lý ảnh, YOLO inference và stream.
+- Backend giữ nghiệp vụ, lịch sử, cảnh báo và emergency workflow.
+- Contract dùng chung nằm trong `shared/contracts`.
+- Report, cache, dataset, training runs, `.venv` và frontend legacy không commit lên `main`.
