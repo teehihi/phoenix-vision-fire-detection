@@ -7,9 +7,11 @@ __pycache__/
 .venv/
 .pytest_cache/
 .ruff_cache/
+.cache/
 
 # Node
 node_modules/
+frontend/
 dist/
 .vite/
 
@@ -19,8 +21,12 @@ dist/
 
 # Models and media
 *.pt
+!ai-service/models/fire.pt
 *.onnx
 *.engine
+report/
+reports/
+reports/*.docx
 recordings/
 uploads/
 datasets/
