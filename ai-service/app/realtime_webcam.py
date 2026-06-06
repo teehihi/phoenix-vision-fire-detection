@@ -28,6 +28,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--person-conf", type=float, default=0.45, help="Minimum confidence for person detection.")
     parser.add_argument("--smoothing-window", type=int, default=5, help="Number of recent frames used for smoothing.")
     parser.add_argument("--stable-frames", type=int, default=3, help="Minimum hits in smoothing window before showing fire/smoke.")
+    parser.add_argument("--cooldown-frames", type=int, default=2, help="Keep a stable hazard active through this many missed frames.")
     parser.add_argument("--min-area-ratio", type=float, default=0.001, help="Drop tiny fire/smoke boxes below this frame-area ratio.")
     parser.add_argument("--person-every", type=int, default=3, help="Run person detection every N frames and reuse last result.")
     parser.add_argument("--danger-margin", type=float, default=0.40, help="Expand fire/smoke boxes by this ratio for danger zones.")
@@ -48,7 +49,9 @@ def run() -> None:
             min_hits=args.stable_frames,
             fire_confidence=args.fire_conf,
             smoke_confidence=args.smoke_conf,
+            person_confidence=args.person_conf,
             min_area_ratio=args.min_area_ratio,
+            cooldown_frames=args.cooldown_frames,
         )
     )
     frame_index = 0
@@ -68,12 +71,14 @@ def run() -> None:
             stream.backend_name = None
 
         fire_detections = fire_detector.predict(frame, confidence=min(args.fire_conf, args.smoke_conf))
-        detections = smoother.update(fire_detections, frame_width=frame.shape[1], frame_height=frame.shape[0])
-
         if person_detector is not None:
             if frame_index % max(args.person_every, 1) == 0:
                 person_detections = person_detector.predict(frame, class_ids=[0], confidence=args.person_conf)
-            detections.extend(person_detections)
+        detections = smoother.update(
+            fire_detections + person_detections,
+            frame_width=frame.shape[1],
+            frame_height=frame.shape[0],
+        )
         frame_index += 1
 
         fps = fps_counter.update()

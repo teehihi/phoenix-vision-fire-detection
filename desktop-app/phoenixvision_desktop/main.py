@@ -18,8 +18,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--camera", type=int, default=0)
     parser.add_argument("--fire-model", default=str(FIRE_MODEL))
     parser.add_argument("--person-model", default=str(PERSON_MODEL if PERSON_MODEL.exists() else "yolo11n.pt"))
-    parser.add_argument("--confidence", type=float, default=0.45)
+    parser.add_argument("--fire-confidence", type=float, default=0.55)
+    parser.add_argument("--smoke-confidence", type=float, default=0.50)
     parser.add_argument("--person-confidence", type=float, default=0.45)
+    parser.add_argument("--smoothing-window", type=int, default=5)
+    parser.add_argument("--stable-frames", type=int, default=3)
+    parser.add_argument("--cooldown-frames", type=int, default=2)
     return parser.parse_args()
 
 

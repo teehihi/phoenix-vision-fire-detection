@@ -22,15 +22,23 @@ class CameraWorker(QObject):
         camera_index: int,
         fire_model_path: str,
         person_model_path: str,
-        confidence: float,
+        fire_confidence: float,
+        smoke_confidence: float,
         person_confidence: float,
+        smoothing_window: int,
+        stable_frames: int,
+        cooldown_frames: int,
     ) -> None:
         super().__init__()
         self.camera_index = camera_index
         self.fire_model_path = fire_model_path
         self.person_model_path = person_model_path
-        self.confidence = confidence
+        self.fire_confidence = fire_confidence
+        self.smoke_confidence = smoke_confidence
         self.person_confidence = person_confidence
+        self.smoothing_window = smoothing_window
+        self.stable_frames = stable_frames
+        self.cooldown_frames = cooldown_frames
         self.running = False
 
     def run(self) -> None:
@@ -38,8 +46,12 @@ class CameraWorker(QObject):
         detector = RealtimeDetector(
             fire_model_path=self.fire_model_path,
             person_model_path=self.person_model_path,
-            confidence=self.confidence,
+            fire_confidence=self.fire_confidence,
+            smoke_confidence=self.smoke_confidence,
             person_confidence=self.person_confidence,
+            smoothing_window=self.smoothing_window,
+            stable_frames=self.stable_frames,
+            cooldown_frames=self.cooldown_frames,
         )
         stream = WebcamStream(camera_index=self.camera_index, width=960, height=540, fps=24)
         last_time = time.perf_counter()

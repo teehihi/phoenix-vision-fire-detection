@@ -19,7 +19,6 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
-    QSlider,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -97,10 +96,9 @@ class PhoenixVisionWindow(QMainWindow):
         self.camera_index.setRange(0, 8)
         self.camera_index.setValue(self.args.camera)
         self.camera_index.setObjectName("inputSmall")
-        self.confidence = QSlider(Qt.Horizontal)
-        self.confidence.setRange(10, 90)
-        self.confidence.setValue(int(self.args.confidence * 100))
-        self.confidence.setFixedWidth(130)
+        self.fire_confidence = self._confidence_input(self.args.fire_confidence)
+        self.smoke_confidence = self._confidence_input(self.args.smoke_confidence)
+        self.person_confidence = self._confidence_input(self.args.person_confidence)
 
         self.start_button = QPushButton("Start")
         self.start_button.setObjectName("primaryButton")
@@ -111,11 +109,24 @@ class PhoenixVisionWindow(QMainWindow):
 
         layout.addWidget(QLabel("Camera"))
         layout.addWidget(self.camera_index)
-        layout.addWidget(QLabel("Confidence"))
-        layout.addWidget(self.confidence)
+        layout.addWidget(QLabel("Fire %"))
+        layout.addWidget(self.fire_confidence)
+        layout.addWidget(QLabel("Smoke %"))
+        layout.addWidget(self.smoke_confidence)
+        layout.addWidget(QLabel("Person %"))
+        layout.addWidget(self.person_confidence)
         layout.addWidget(self.start_button)
         layout.addWidget(self.stop_button)
         return header
+
+    @staticmethod
+    def _confidence_input(value: float) -> QSpinBox:
+        field = QSpinBox()
+        field.setRange(10, 95)
+        field.setValue(round(value * 100))
+        field.setSuffix("%")
+        field.setObjectName("inputSmall")
+        return field
 
     def _toolbar(self) -> QWidget:
         toolbar = QFrame()
@@ -198,8 +209,12 @@ class PhoenixVisionWindow(QMainWindow):
             camera_index=self.camera_index.value(),
             fire_model_path=self.args.fire_model,
             person_model_path=self.args.person_model,
-            confidence=self.confidence.value() / 100,
-            person_confidence=self.args.person_confidence,
+            fire_confidence=self.fire_confidence.value() / 100,
+            smoke_confidence=self.smoke_confidence.value() / 100,
+            person_confidence=self.person_confidence.value() / 100,
+            smoothing_window=self.args.smoothing_window,
+            stable_frames=self.args.stable_frames,
+            cooldown_frames=self.args.cooldown_frames,
         )
         self.worker.moveToThread(self.worker_thread)
         self.worker_thread.started.connect(self.worker.run)
