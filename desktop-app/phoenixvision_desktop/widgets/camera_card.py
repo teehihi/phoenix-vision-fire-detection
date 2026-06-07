@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QPushBut
 
 from phoenixvision_desktop.core.detection import count_labels, pixmap_from_bgr
 from phoenixvision_desktop.core.models import CameraConfig, FramePacket
+from phoenixvision_desktop.core.styles import apply_soft_shadow
 
 
 class CameraCard(QFrame):
@@ -16,8 +17,9 @@ class CameraCard(QFrame):
         self.camera = camera
         self.setObjectName("cameraCard")
         self.setCursor(Qt.PointingHandCursor)
-        self.setMinimumHeight(260)
+        self.setMinimumHeight(248)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        apply_soft_shadow(self, blur_radius=22, y_offset=7, alpha=22)
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -27,7 +29,7 @@ class CameraCard(QFrame):
 
         self.video = QLabel()
         self.video.setObjectName("cameraVideo")
-        self.video.setMinimumHeight(190)
+        self.video.setMinimumHeight(176)
         self.video.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.video)
 
@@ -44,8 +46,9 @@ class CameraCard(QFrame):
         top.addWidget(self.status_chip)
         top.addWidget(self.risk_chip)
         top.addStretch()
-        full_button = QPushButton("View")
+        full_button = QPushButton("Xem")
         full_button.setObjectName("ghostButton")
+        full_button.setCursor(Qt.PointingHandCursor)
         full_button.clicked.connect(lambda: self.full_requested.emit(self.camera.camera_id))
         top.addWidget(full_button)
         overlay_layout.addLayout(top)
@@ -64,9 +67,9 @@ class CameraCard(QFrame):
         layout.addWidget(metric_bar)
 
         if self.camera.is_local:
-            self.video.setText("Press Start to open webcam")
+            self.video.setText("Bấm Start để mở webcam")
         else:
-            self.video.setText("Camera waiting for stream configuration")
+            self.video.setText("Camera đang chờ cấu hình stream")
 
     def _bottom_overlay(self) -> QHBoxLayout:
         bottom = QHBoxLayout()
@@ -109,7 +112,7 @@ class CameraCard(QFrame):
         self.people_value.setText(str(analysis.humans_detected_count))
         self.fire_value.setText(str(count_labels(packet.detections, {"fire"})))
         self.smoke_value.setText(str(count_labels(packet.detections, {"smoke"})))
-        self.fps_box.setText(f"{packet.fps:.1f} FPS\nWEBCAM")
+        self.fps_box.setText(f"{packet.fps:.1f} FPS\n{self.camera.source_type}")
 
     @staticmethod
     def _metric(layout: QGridLayout, label: str, value: str, column: int) -> QLabel:

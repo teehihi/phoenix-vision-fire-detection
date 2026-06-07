@@ -18,11 +18,11 @@ class Sidebar(QFrame):
     def __init__(self) -> None:
         super().__init__()
         self.setObjectName("sidebar")
-        self.setFixedWidth(248)
+        self.setFixedWidth(260)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(22, 28, 22, 22)
-        layout.setSpacing(20)
+        layout.setContentsMargins(24, 30, 24, 24)
+        layout.setSpacing(24)
         layout.addWidget(self._logo())
         layout.addLayout(self._nav())
         layout.addStretch()
@@ -45,7 +45,7 @@ class Sidebar(QFrame):
         nav = QVBoxLayout()
         nav.setSpacing(10)
         nav.addWidget(SidebarButton("Dashboard"))
-        nav.addWidget(SidebarButton("Live Detection", active=True))
-        nav.addWidget(SidebarButton("History"))
-        nav.addWidget(SidebarButton("Alerts"))
+        nav.addWidget(SidebarButton("Giám sát trực tiếp", active=True))
+        nav.addWidget(SidebarButton("Lịch sử sự cố"))
+        nav.addWidget(SidebarButton("Cảnh báo"))
         return nav

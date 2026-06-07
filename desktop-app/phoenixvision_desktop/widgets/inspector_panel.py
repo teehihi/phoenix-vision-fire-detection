@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
 from phoenixvision_desktop.core.models import CameraConfig, FramePacket
+from phoenixvision_desktop.core.styles import apply_soft_shadow
 
 
 class InspectorPanel(QFrame):
@@ -12,6 +13,7 @@ class InspectorPanel(QFrame):
     def __init__(self) -> None:
         super().__init__()
         self.setObjectName("panel")
+        apply_soft_shadow(self, blur_radius=20, y_offset=6, alpha=22)
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -27,11 +29,11 @@ class InspectorPanel(QFrame):
     def _header(self) -> QHBoxLayout:
         head = QHBoxLayout()
         title_box = QVBoxLayout()
-        caption = QLabel("CAMERA DANG CHON")
+        caption = QLabel("CAMERA ĐANG CHỌN")
         caption.setObjectName("caption")
         self.title = QLabel("Webcam local")
         self.title.setObjectName("panelTitle")
-        self.area = QLabel("May hien tai")
+        self.area = QLabel("Máy hiện tại")
         self.area.setObjectName("mutedText")
         title_box.addWidget(caption)
         title_box.addWidget(self.title)
@@ -39,8 +41,10 @@ class InspectorPanel(QFrame):
         head.addLayout(title_box)
         head.addStretch()
 
-        close = QPushButton("X")
+        close = QPushButton("×")
         close.setObjectName("iconButton")
+        close.setCursor(Qt.PointingHandCursor)
+        close.setFixedSize(44, 44)
         close.clicked.connect(self.closed.emit)
         head.addWidget(close)
         return head
@@ -64,7 +68,7 @@ class InspectorPanel(QFrame):
         self.risk_bar.setFixedHeight(8)
         risk_layout.addWidget(self.risk_bar)
 
-        self.status = QLabel("No dangerous human detected.")
+        self.status = QLabel("Chưa phát hiện người trong vùng nguy hiểm.")
         self.status.setObjectName("mutedText")
         risk_layout.addWidget(self.status)
         return risk_box
@@ -82,9 +86,9 @@ class InspectorPanel(QFrame):
         connection = QFrame()
         connection.setObjectName("softBox")
         connection_layout = QVBoxLayout(connection)
-        title = QLabel("Connection status")
+        title = QLabel("Trạng thái kết nối")
         title.setObjectName("sectionTitle")
-        self.connection = QLabel("Waiting for local stream.")
+        self.connection = QLabel("Đang chờ stream local.")
         self.connection.setObjectName("mutedText")
         connection_layout.addWidget(title)
         connection_layout.addWidget(self.connection)
@@ -96,20 +100,23 @@ class InspectorPanel(QFrame):
         self.risk.setText(camera.risk_level)
         self.score.setText(str(camera.risk_score))
         self.fps.setText(f"{camera.fps:.1f}")
-        self.updated.setText("Waiting")
+        self.updated.setText("Đang chờ")
         self.people.setText("0")
         self.at_risk.setText("0")
+        self.connection.setText(f"{camera.source_type} | {camera.display_source()}")
 
     def set_packet(self, packet: FramePacket) -> None:
         analysis = packet.analysis
         self.risk.setText(str(analysis.risk_level))
         self.score.setText(f"{analysis.risk_score:.0f}")
-        self.status.setText("Human at risk detected." if analysis.human_at_risk else "No dangerous human detected.")
+        self.status.setText(
+            "Có người trong vùng nguy hiểm." if analysis.human_at_risk else "Chưa phát hiện người trong vùng nguy hiểm."
+        )
         self.fps.setText(f"{packet.fps:.1f}")
         self.updated.setText(packet.timestamp.strftime("%H:%M:%S"))
         self.people.setText(str(analysis.humans_detected_count))
         self.at_risk.setText(str(analysis.humans_nearby_count))
-        self.connection.setText("Local stream connected.")
+        self.connection.setText("Camera stream đã kết nối.")
 
     @staticmethod
     def _metric(layout: QGridLayout, label: str, value: str, row: int, column: int) -> QLabel:
