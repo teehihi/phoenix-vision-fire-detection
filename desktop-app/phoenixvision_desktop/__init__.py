@@ -1,1 +1,0 @@
-"""PhoenixVision desktop application package."""

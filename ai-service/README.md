@@ -5,10 +5,10 @@ AI service dùng Python, OpenCV và Ultralytics YOLO để detect frame từ web
 ## Vai Trò
 
 - Load model `models/fire.pt` để detect `fire` và `smoke`.
-- Dùng `yolo11n.pt` để detect `person`; file này không commit, Ultralytics tự tải khi cần và máy có internet.
+- Person detection là tuỳ chọn, mặc định tắt để tập trung vào fire/smoke.
 - Cung cấp realtime webcam runner bằng OpenCV.
 - Cung cấp FastAPI endpoint và WebSocket stream cho các client khác.
-- Chia sẻ pipeline detection cho `desktop-app`.
+- Chia sẻ pipeline detection cho React frontend qua API/WebSocket.
 
 ## Cài Đặt
 
@@ -43,19 +43,19 @@ Nếu train model mới, thay file này bằng weight mới.
 macOS/Linux:
 
 ```bash
-python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
+python -m app.realtime_webcam --model models/fire.pt --camera 0
 ```
 
 Windows PowerShell:
 
 ```powershell
-python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
+python -m app.realtime_webcam --model models/fire.pt --camera 0
 ```
 
 Nếu camera `0` không mở được, thử:
 
 ```bash
-python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 1
+python -m app.realtime_webcam --model models/fire.pt --camera 1
 ```
 
 Thoát OpenCV window bằng `q` hoặc `Esc`.
@@ -63,10 +63,14 @@ Thoát OpenCV window bằng `q` hoặc `Esc`.
 Tham số giảm false positive:
 
 ```bash
-python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0 --fire-conf 0.65 --smoke-conf 0.60 --stable-frames 4
+python -m app.realtime_webcam --model models/fire.pt --camera 0 --fire-conf 0.65 --smoke-conf 0.60 --stable-frames 4
 ```
 
-Khi có `fire/smoke` và `person` gần vùng nguy hiểm, pipeline sẽ đánh dấu rủi ro `HUMAN AT RISK`.
+Nếu cần bật phân tích người trong vùng nguy hiểm:
+
+```bash
+python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt --camera 0
+```
 
 ## Chạy API
 

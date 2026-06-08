@@ -16,8 +16,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model", default=settings.yolo_model_path, help="Path to fire/smoke YOLO .pt model weights.")
     parser.add_argument(
         "--person-model",
-        default="yolo11n.pt",
-        help="YOLOv11 model for person detection. Use empty string to disable.",
+        default="",
+        help="Optional YOLO model for person detection. Leave empty to focus only on fire/smoke.",
     )
     parser.add_argument("--camera", type=int, default=settings.camera_index, help="Webcam index.")
     parser.add_argument("--width", type=int, default=settings.camera_width, help="Capture width.")

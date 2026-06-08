@@ -26,7 +26,7 @@ async def stream_webcam(websocket: WebSocket) -> None:
     target_fps = int(query.get("fps", 12))
     jpeg_quality = int(query.get("quality", 72))
     model_path = query.get("model", settings.yolo_model_path)
-    person_model_path = query.get("person_model", "yolo11n.pt")
+    person_model_path = query.get("person_model", "")
     person_every = max(int(query.get("person_every", 4)), 1)
 
     fire_detector = YoloDetector(model_path)

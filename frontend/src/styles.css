@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+@keyframes emergencyPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgb(239 68 68 / 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgb(239 68 68 / 0);
+  }
+}
+
+@keyframes emergencyPulseSoft {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgb(245 158 11 / 0.25);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgb(245 158 11 / 0);
+  }
+}
+
+@keyframes emergencyFlash {
+  0%, 100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.35);
+  }
+}
+
+.emergency-pulse {
+  animation: emergencyPulse 1s ease-in-out infinite;
+}
+
+.emergency-pulse-soft {
+  animation: emergencyPulseSoft 1.8s ease-in-out infinite;
+}
+
+.emergency-flash {
+  animation: emergencyFlash 0.55s ease-in-out infinite;
+}
+
+.cinematic-grid {
+  background-image:
+    linear-gradient(rgb(14 165 233 / 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(14 165 233 / 0.08) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(circle at 50% 20%, black 0%, transparent 70%);
+}
+
+.camera-scanlines {
+  background-image: linear-gradient(to bottom, rgb(255 255 255 / 0.13) 1px, transparent 1px);
+  background-size: 100% 6px;
+}
+
+.camera-vignette {
+  background:
+    radial-gradient(circle at center, transparent 40%, rgb(2 6 23 / 0.58) 100%),
+    linear-gradient(90deg, rgb(239 68 68 / 0.12), transparent 24%, transparent 76%, rgb(14 165 233 / 0.12));
+}
+
+.camera-corners::before,
+.camera-corners::after {
+  content: "";
+  position: absolute;
+  width: 56px;
+  height: 56px;
+  border-color: rgb(125 211 252 / 0.85);
+}
+
+.camera-corners::before {
+  left: 16px;
+  top: 16px;
+  border-left-width: 2px;
+  border-top-width: 2px;
+}
+
+.camera-corners::after {
+  right: 16px;
+  bottom: 16px;
+  border-right-width: 2px;
+  border-bottom-width: 2px;
+}
+
+.cinematic-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.cinematic-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-120%);
+  background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 0.52), transparent 65%);
+  transition: transform 0.7s ease;
+}
+
+.cinematic-card:hover::after {
+  transform: translateX(120%);
+}

@@ -11,7 +11,11 @@ __pycache__/
 
 # Node
 node_modules/
-frontend/
+frontend/node_modules/
+frontend/dist/
+frontend-native/node_modules/
+frontend-native/.expo/
+frontend-native/dist/
 dist/
 .vite/
 
