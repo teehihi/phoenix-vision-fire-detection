@@ -1,12 +1,14 @@
 import asyncio
 import time
+from collections.abc import Iterator
+from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.core.config import settings
 from app.models.yolo_detector import YoloDetector
 from app.pipelines.danger_analysis import DangerAnalysisConfig, DangerAnalyzer
-from app.pipelines.frame_pipeline import draw_danger_analysis, draw_detections, draw_fps
+from app.pipelines.frame_pipeline import draw_danger_analysis, draw_detections
 from app.pipelines.temporal_smoothing import StableDetectionConfig, TemporalDetectionSmoother
 from app.streams.webcam_stream import WebcamStream
 from app.utils.fps import FPSCounter
@@ -30,33 +32,50 @@ async def stream_webcam(websocket: WebSocket) -> None:
     model_path = query.get("model", settings.yolo_model_path)
     person_model_path = query.get("person_model", "")
     person_every = max(int(query.get("person_every", 4)), 1)
+    max_read_failures = max(int(query.get("read_failures", 30)), 1)
 
     fire_detector = YoloDetector(model_path)
     person_detector = YoloDetector(person_model_path) if person_model_path else None
-    stream = WebcamStream(camera_index=camera_index, source=source_url, width=width, height=height, fps=target_fps)
+    stream = WebcamStream(
+        camera_index=camera_index,
+        source=source_url,
+        width=width,
+        height=height,
+        fps=target_fps,
+        max_read_failures=max_read_failures,
+    )
     fps_counter = FPSCounter()
     smoother = TemporalDetectionSmoother(StableDetectionConfig())
     analyzer = DangerAnalyzer(DangerAnalysisConfig())
     person_detections = []
     frame_index = 0
     frame_delay = 1 / max(target_fps, 1)
+    frames = iter(stream.frames())
 
     try:
-        for frame in stream.frames():
+        while True:
+            frame = await asyncio.to_thread(_next_frame, frames)
+            if frame is None:
+                break
+
             started_at = time.perf_counter()
-            fire_detections = fire_detector.predict(frame)
+            fire_detections = await asyncio.to_thread(fire_detector.predict, frame)
             detections = smoother.update(fire_detections, frame_width=frame.shape[1], frame_height=frame.shape[0])
 
             if person_detector is not None and frame_index % person_every == 0:
-                person_detections = person_detector.predict(frame, class_ids=[0], confidence=0.45)
+                person_detections = await asyncio.to_thread(
+                    person_detector.predict,
+                    frame,
+                    class_ids=[0],
+                    confidence=0.45,
+                )
 
             detections.extend(person_detections)
             analysis = analyzer.analyze(detections, frame_width=frame.shape[1], frame_height=frame.shape[0])
             fps = fps_counter.update()
 
             draw_detections(frame, detections)
-            draw_danger_analysis(frame, analysis)
-            draw_fps(frame, fps)
+            draw_danger_analysis(frame, analysis, draw_banner=False)
 
             await websocket.send_json(
                 {
@@ -92,3 +111,10 @@ async def stream_webcam(websocket: WebSocket) -> None:
     except Exception as exc:
         await websocket.send_json({"type": "stream_error", "message": str(exc)})
         await websocket.close(code=1011)
+
+
+def _next_frame(frames: Iterator[Any]) -> Any | None:
+    try:
+        return next(frames)
+    except StopIteration:
+        return None

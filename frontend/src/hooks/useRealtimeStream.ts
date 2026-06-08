@@ -13,12 +13,19 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
   const reconnectAttempt = useRef(0);
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<number | null>(null);
+  const connectTimer = useRef<number | null>(null);
 
   useEffect(() => {
     if (!enabled) {
       setFrame(null);
       setState('idle');
       setError(null);
+      if (connectTimer.current) {
+        window.clearTimeout(connectTimer.current);
+      }
+      if (reconnectTimer.current) {
+        window.clearTimeout(reconnectTimer.current);
+      }
       socketRef.current?.close();
       return;
     }
@@ -31,12 +38,18 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
       socketRef.current = socket;
 
       socket.onopen = () => {
+        if (socketRef.current !== socket) {
+          return;
+        }
         reconnectAttempt.current = 0;
         setState('connected');
         setError(null);
       };
 
       socket.onmessage = (event) => {
+        if (socketRef.current !== socket) {
+          return;
+        }
         let message: { type?: string; message?: string };
         try {
           message = JSON.parse(event.data);
@@ -54,12 +67,15 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
       };
 
       socket.onerror = () => {
+        if (socketRef.current !== socket) {
+          return;
+        }
         setState('error');
         setError('Realtime stream connection error.');
       };
 
       socket.onclose = () => {
-        if (!shouldReconnect) {
+        if (!shouldReconnect || socketRef.current !== socket) {
           return;
         }
         reconnectAttempt.current += 1;
@@ -69,9 +85,12 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
       };
     }
 
-    connect();
+    connectTimer.current = window.setTimeout(connect, 150);
     return () => {
       shouldReconnect = false;
+      if (connectTimer.current) {
+        window.clearTimeout(connectTimer.current);
+      }
       if (reconnectTimer.current) {
         window.clearTimeout(reconnectTimer.current);
       }

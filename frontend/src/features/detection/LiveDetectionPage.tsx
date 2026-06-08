@@ -5,6 +5,9 @@ import {
   Clock3,
   DoorOpen,
   Edit3,
+  Eye,
+  EyeOff,
+  Flame,
   LayoutGrid,
   MapPin,
   Maximize2,
@@ -18,11 +21,11 @@ import {
   WifiOff,
   X
 } from 'lucide-react';
-import { type FormEvent, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CameraOverlay, EmergencyOverlay } from '../../components/effects/CinematicEffects';
 import { buildCameraStreamUrl, useRealtimeStream } from '../../hooks/useRealtimeStream';
-import type { ProcessedFrameMessage, RealtimeRiskPayload } from '../../types/detection';
+import { getIncidentTimeline } from '../../lib/apiClient';
+import type { IncidentTimelineEvent, ProcessedFrameMessage, RealtimeRiskPayload } from '../../types/detection';
 import { type CameraRegistryInput, type CameraRegistryItem, type CameraSource, useCameraRegistry } from './useCameraRegistry';
 
 type CameraStatus = 'online' | 'warning' | 'offline';
@@ -85,17 +88,25 @@ export function LiveDetectionPage() {
   const [gridMode, setGridMode] = useState<GridMode>('auto');
   const [gridMenuOpen, setGridMenuOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [showFrameAiInfo, setShowFrameAiInfo] = useState(true);
+  const primaryStream = useRealtimeStream();
   const selectedRegistryCamera = useMemo(() => registryCameras.find((camera) => camera.id === selectedCameraId) ?? null, [registryCameras, selectedCameraId]);
-  const selectedStreamUrl = useMemo(() => buildCameraStreamUrl(selectedRegistryCamera ?? { id: 'webcam-0', source: 'webcam', streamUrl: '' }), [selectedRegistryCamera]);
-  const streamEnabled = selectedCameraId === 'webcam-0' || Boolean(selectedRegistryCamera?.enabled && selectedRegistryCamera.streamUrl.trim());
-  const { frame, state, error } = useRealtimeStream(selectedStreamUrl, streamEnabled);
+  const selectedRegistryStreamUrl = useMemo(() => (selectedRegistryCamera ? buildCameraStreamUrl(selectedRegistryCamera) : ''), [selectedRegistryCamera]);
+  const selectedRegistryStreamEnabled = Boolean(selectedRegistryCamera?.enabled && selectedRegistryCamera.streamUrl.trim());
+  const selectedRegistryStream = useRealtimeStream(selectedRegistryStreamUrl, selectedRegistryStreamEnabled);
 
   const cameras = useMemo(() => {
     return [
-      createPrimaryCamera(selectedCameraId === 'webcam-0' ? frame : null, selectedCameraId === 'webcam-0' ? state : 'idle'),
-      ...registryCameras.map((camera) => createRegistryCamera(camera, camera.id === selectedCameraId ? frame : null, camera.id === selectedCameraId ? state : 'idle'))
+      createPrimaryCamera(primaryStream.frame, primaryStream.state),
+      ...registryCameras.map((camera) =>
+        createRegistryCamera(
+          camera,
+          camera.id === selectedCameraId ? selectedRegistryStream.frame : null,
+          camera.id === selectedCameraId ? selectedRegistryStream.state : 'idle'
+        )
+      )
     ];
-  }, [frame, registryCameras, selectedCameraId, state]);
+  }, [primaryStream.frame, primaryStream.state, registryCameras, selectedCameraId, selectedRegistryStream.frame, selectedRegistryStream.state]);
 
   const filteredCameras = cameras.filter((cameraItem) => {
     const target = `${cameraItem.name} ${cameraItem.location} ${cameraItem.zone}`.toLowerCase();
@@ -104,6 +115,8 @@ export function LiveDetectionPage() {
 
   const selectedCamera = cameras.find((cameraItem) => cameraItem.id === selectedCameraId) ?? cameras[0];
   const fullscreenCamera = cameras.find((cameraItem) => cameraItem.id === fullscreenCameraId) ?? null;
+  const selectedStreamState = selectedCamera.isPrimary ? primaryStream.state : selectedRegistryStream.state;
+  const selectedStreamError = selectedCamera.isPrimary ? primaryStream.error : selectedRegistryStream.error;
   const onlineCount = cameras.filter((cameraItem) => cameraItem.status === 'online').length;
   const warningCount = cameras.filter((cameraItem) => cameraItem.status === 'warning').length;
   const offlineCount = cameras.filter((cameraItem) => cameraItem.status === 'offline').length;
@@ -201,6 +214,8 @@ export function LiveDetectionPage() {
                   setInspectorOpen(true);
                 }}
                 onFullscreen={() => setFullscreenCameraId(cameraItem.id)}
+                showAiInfo={showFrameAiInfo}
+                onToggleAiInfo={() => setShowFrameAiInfo((value) => !value)}
                 onEdit={() => {
                   setCameraMutationError(null);
                   setCameraPanel({ mode: 'edit', camera: cameraItem });
@@ -213,8 +228,8 @@ export function LiveDetectionPage() {
         {inspectorOpen ? (
           <CameraInspector
             cameraItem={selectedCamera}
-            streamState={state}
-            streamError={error}
+            streamState={selectedStreamState}
+            streamError={selectedStreamError}
             onClose={() => setInspectorOpen(false)}
             onEdit={() => {
               setCameraMutationError(null);
@@ -245,7 +260,7 @@ export function LiveDetectionPage() {
       </div>
 
       <AnimatePresence>
-        {fullscreenCamera ? <FullscreenCamera cameraItem={fullscreenCamera} onClose={() => setFullscreenCameraId(null)} /> : null}
+        {fullscreenCamera ? <FullscreenCamera cameraItem={fullscreenCamera} showAiInfo={showFrameAiInfo} onToggleAiInfo={() => setShowFrameAiInfo((value) => !value)} onClose={() => setFullscreenCameraId(null)} /> : null}
         {cameraPanel ? (
           <CameraFormPanel
             panelState={cameraPanel}
@@ -383,16 +398,19 @@ function CameraGridCard({
   active,
   onSelect,
   onFullscreen,
+  showAiInfo,
+  onToggleAiInfo,
   onEdit
 }: {
   cameraItem: CameraItem;
   active: boolean;
   onSelect: () => void;
   onFullscreen: () => void;
+  showAiInfo: boolean;
+  onToggleAiInfo: () => void;
   onEdit: () => void;
 }) {
   const imageSrc = cameraItem.frame ? `data:image/jpeg;base64,${cameraItem.frame.frame}` : null;
-  const danger = cameraItem.riskLevel === 'HIGH' || cameraItem.riskLevel === 'CRITICAL';
 
   return (
     <motion.article
@@ -403,21 +421,27 @@ function CameraGridCard({
       }`}
     >
       <div className="relative aspect-video bg-slate-950">
-        {danger ? <EmergencyOverlay /> : null}
         {imageSrc ? (
           <img src={imageSrc} alt={`${cameraItem.name} realtime feed`} className="h-full w-full object-cover" />
         ) : (
           <CameraPlaceholder cameraItem={cameraItem} />
         )}
 
-        {imageSrc ? <CameraOverlay danger={danger} /> : null}
-
-        <div className="absolute left-3 top-3 flex flex-wrap items-center gap-2">
-          <StatusBadge status={cameraItem.status} />
-          <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${riskTone[cameraItem.riskLevel]}`}>{cameraItem.riskLevel}</span>
-        </div>
+        {imageSrc && showAiInfo ? <FrameAiInfo cameraItem={cameraItem} compact /> : null}
 
         <div className="absolute right-3 top-3 flex items-center gap-2 opacity-100 transition lg:opacity-0 lg:group-hover:opacity-100">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleAiInfo();
+            }}
+            className="grid h-9 w-9 place-items-center rounded-full border border-white/20 bg-black/40 text-white backdrop-blur transition hover:bg-black/60"
+            aria-label={showAiInfo ? 'Ẩn thông tin AI trên khung hình' : 'Hiện thông tin AI trên khung hình'}
+            title={showAiInfo ? 'Ẩn thông tin AI' : 'Hiện thông tin AI'}
+          >
+            {showAiInfo ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
           <button
             type="button"
             onClick={(event) => {
@@ -444,18 +468,17 @@ function CameraGridCard({
           ) : null}
         </div>
 
-        <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-3">
-          <div className="rounded-xl border border-white/15 bg-black/45 px-3 py-2 text-white backdrop-blur">
-            <p className="text-sm font-semibold">{cameraItem.name}</p>
-            <p className="mt-0.5 flex items-center gap-1 text-xs text-white/75">
-              <MapPin size={12} />
-              {cameraItem.location}
-            </p>
-          </div>
-          <div className="rounded-xl border border-white/15 bg-black/45 px-3 py-2 text-right text-white backdrop-blur">
-            <p className="text-sm font-semibold">{cameraItem.fps ? cameraItem.fps.toFixed(1) : '--'} FPS</p>
-            <p className="text-xs text-white/75">{cameraItem.source.toUpperCase()}</p>
-          </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-slate-900">{cameraItem.name}</p>
+          <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
+            <MapPin size={12} />
+            <span className="truncate">{cameraItem.location}</span>
+            <span className="text-slate-300">/</span>
+            <span>{cameraItem.source.toUpperCase()}</span>
+          </p>
         </div>
       </div>
 
@@ -479,6 +502,29 @@ function CameraPlaceholder({ cameraItem }: { cameraItem: CameraItem }) {
         <p className="text-sm font-semibold">{offline ? 'Camera mất kết nối' : 'Camera đang chờ cấu hình stream'}</p>
         <p className="mt-1 text-xs text-slate-400">{cameraItem.zone}</p>
       </div>
+    </div>
+  );
+}
+
+function FrameAiInfo({ cameraItem, compact = false }: { cameraItem: CameraItem; compact?: boolean }) {
+  const risk = cameraItem.frame?.risk;
+
+  return (
+    <div className={`pointer-events-none absolute left-3 top-3 max-w-[min(360px,calc(100%-96px))] rounded-xl border border-white/15 bg-slate-950/70 text-white shadow-lg backdrop-blur ${compact ? 'px-3 py-2' : 'px-4 py-3'}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-white/55">AI</span>
+        <span className="text-sm font-semibold">{cameraItem.riskLevel}</span>
+        <span className="text-sm text-white/70">{cameraItem.riskScore.toFixed(0)}/100</span>
+      </div>
+      <p className="mt-1 truncate text-xs text-white/75">{risk?.status ?? 'Monitoring'}</p>
+      {!compact ? (
+        <div className="mt-2 grid grid-cols-4 gap-2 text-xs text-white/70">
+          <span>FPS {cameraItem.fps ? cameraItem.fps.toFixed(1) : '--'}</span>
+          <span>Fire {cameraItem.fire}</span>
+          <span>Smoke {cameraItem.smoke}</span>
+          <span>Cons {Math.round((risk?.frameConsistency ?? 0) * 100)}%</span>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -568,29 +614,177 @@ function CameraInspector({
   );
 }
 
-function FullscreenCamera({ cameraItem, onClose }: { cameraItem: CameraItem; onClose: () => void }) {
+function FullscreenCamera({
+  cameraItem,
+  showAiInfo,
+  onToggleAiInfo,
+  onClose
+}: {
+  cameraItem: CameraItem;
+  showAiInfo: boolean;
+  onToggleAiInfo: () => void;
+  onClose: () => void;
+}) {
   const imageSrc = cameraItem.frame ? `data:image/jpeg;base64,${cameraItem.frame.frame}` : null;
-  const danger = cameraItem.riskLevel === 'HIGH' || cameraItem.riskLevel === 'CRITICAL';
+  const detections = cameraItem.frame?.detections ?? [];
+  const risk = cameraItem.frame?.risk;
+  const [incidents, setIncidents] = useState<IncidentTimelineEvent[]>([]);
+  const [incidentError, setIncidentError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadIncidents() {
+      try {
+        const data = await getIncidentTimeline({ cameraId: cameraItem.id });
+        if (isMounted) {
+          setIncidents(data.slice(0, 4));
+          setIncidentError(null);
+        }
+      } catch {
+        if (isMounted) {
+          setIncidentError('Không tải được incident gần nhất.');
+        }
+      }
+    }
+
+    loadIncidents();
+    const intervalId = window.setInterval(loadIncidents, 5000);
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [cameraItem.id]);
 
   return (
-    <motion.div className="fixed inset-0 z-50 bg-slate-950/80 p-4 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+    <motion.div className="fixed inset-0 z-50 bg-slate-950/85 p-4 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <motion.div className="mx-auto flex h-full max-w-7xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl" initial={{ scale: 0.96, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96, y: 20 }}>
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Xem toàn màn hình</p>
-            <h3 className="text-lg font-semibold text-slate-950">{cameraItem.name}</h3>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-600">Camera detail view</p>
+            <h3 className="mt-1 text-xl font-semibold text-slate-950">{cameraItem.name}</h3>
+            <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500">
+              <span>{cameraItem.zone}</span>
+              <span className="hidden h-1 w-1 rounded-full bg-slate-300 sm:inline-block" />
+              <span>{cameraItem.location}</span>
+              <span className="hidden h-1 w-1 rounded-full bg-slate-300 sm:inline-block" />
+              <span>{cameraItem.source.toUpperCase()}</span>
+            </p>
           </div>
-          <button onClick={onClose} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50" aria-label="Đóng">
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            <StatusBadge status={cameraItem.status} />
+            <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${riskTone[cameraItem.riskLevel]}`}>{cameraItem.riskLevel}</span>
+            <button
+              onClick={onToggleAiInfo}
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              aria-label={showAiInfo ? 'Ẩn thông tin AI trên khung hình' : 'Hiện thông tin AI trên khung hình'}
+            >
+              {showAiInfo ? <EyeOff size={16} /> : <Eye size={16} />}
+              {showAiInfo ? 'Ẩn AI' : 'Hiện AI'}
+            </button>
+            <button onClick={onClose} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50" aria-label="Đóng">
+              <X size={18} />
+            </button>
+          </div>
         </div>
-        <div className="relative min-h-0 flex-1 bg-slate-950">
-          {danger ? <EmergencyOverlay /> : null}
-          {imageSrc ? <img src={imageSrc} alt={`${cameraItem.name} fullscreen feed`} className="h-full w-full object-contain" /> : <CameraPlaceholder cameraItem={cameraItem} />}
-          {imageSrc ? <CameraOverlay danger={danger} /> : null}
+
+        <div className="grid min-h-0 flex-1 bg-slate-100 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="flex min-h-0 flex-col bg-slate-950">
+            <div className="relative min-h-0 flex-1">
+              {imageSrc ? <img src={imageSrc} alt={`${cameraItem.name} fullscreen feed`} className="h-full w-full object-contain" /> : <CameraPlaceholder cameraItem={cameraItem} />}
+              {imageSrc && showAiInfo ? <FrameAiInfo cameraItem={cameraItem} /> : null}
+            </div>
+
+            <div className="grid border-t border-white/10 bg-slate-900/95 text-white sm:grid-cols-4">
+              <FullscreenMetric label="FPS" value={cameraItem.fps ? cameraItem.fps.toFixed(1) : '--'} />
+              <FullscreenMetric label="Risk" value={cameraItem.riskScore.toFixed(0)} />
+              <FullscreenMetric label="Fire" value={String(cameraItem.fire)} />
+              <FullscreenMetric label="Smoke" value={String(cameraItem.smoke)} />
+            </div>
+          </div>
+
+          <aside className="min-h-0 overflow-y-auto border-t border-slate-200 bg-white p-5 lg:border-l lg:border-t-0">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Risk analysis</p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-950">{cameraItem.riskScore.toFixed(0)}</p>
+                </div>
+                <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${riskTone[cameraItem.riskLevel]}`}>{cameraItem.riskLevel}</span>
+              </div>
+              <p className="mt-3 text-sm font-medium text-slate-700">{risk?.status ?? 'Chưa có phân tích nguy cơ từ frame hiện tại.'}</p>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <DetailMetric icon={Clock3} label="Duration" value={`${risk?.durationSeconds?.toFixed(1) ?? '0.0'}s`} />
+                <DetailMetric icon={Activity} label="Consistency" value={`${Math.round((risk?.frameConsistency ?? 0) * 100)}%`} />
+                <DetailMetric icon={DoorOpen} label="People" value={String(risk?.humansDetectedCount ?? 0)} />
+                <DetailMetric icon={AlertTriangle} label="Nearby" value={String(risk?.humansNearbyCount ?? 0)} />
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-slate-200 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-sm font-semibold text-slate-900">Detections</p>
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{detections.length}</span>
+              </div>
+              <div className="space-y-2">
+                {detections.length ? (
+                  detections.map((item, index) => <DetectionRow key={`${item.label}-${index}`} label={item.label} confidence={item.confidence} boxes={item.boxes.length} />)
+                ) : (
+                  <p className="rounded-xl bg-slate-50 px-3 py-3 text-sm text-slate-500">Frame hiện tại chưa có object fire/smoke/person.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-slate-200 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-sm font-semibold text-slate-900">Incident gần nhất</p>
+                <Flame size={17} className="text-orange-600" />
+              </div>
+              {incidentError ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{incidentError}</p> : null}
+              <div className="space-y-3">
+                {incidents.length ? incidents.map((incident) => <RecentIncident key={incident.id} incident={incident} />) : <p className="rounded-xl bg-slate-50 px-3 py-3 text-sm text-slate-500">Chưa có incident nào cho camera này.</p>}
+              </div>
+            </div>
+          </aside>
         </div>
       </motion.div>
     </motion.div>
+  );
+}
+
+function FullscreenMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border-b border-white/10 px-4 py-3 sm:border-b-0 sm:border-r last:sm:border-r-0">
+      <p className="text-xs text-white/50">{label}</p>
+      <p className="mt-1 text-lg font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function DetectionRow({ label, confidence, boxes }: { label: string; confidence: number; boxes: number }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2">
+      <div>
+        <p className="text-sm font-semibold capitalize text-slate-800">{label}</p>
+        <p className="text-xs text-slate-500">{boxes} box</p>
+      </div>
+      <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">{Math.round(confidence * 100)}%</span>
+    </div>
+  );
+}
+
+function RecentIncident({ incident }: { incident: IncidentTimelineEvent }) {
+  return (
+    <article className="rounded-xl border border-slate-200 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-slate-900">{incident.title}</p>
+          <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{incident.description}</p>
+        </div>
+        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${riskTone[incident.riskLevel]}`}>{incident.riskLevel}</span>
+      </div>
+      <p className="mt-2 text-xs text-slate-400">{new Date(incident.createdAt).toLocaleString()}</p>
+    </article>
   );
 }
 

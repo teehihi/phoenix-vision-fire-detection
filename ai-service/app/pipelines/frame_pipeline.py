@@ -44,7 +44,7 @@ def draw_fps(frame: np.ndarray, fps: float) -> np.ndarray:
     return frame
 
 
-def draw_danger_analysis(frame: np.ndarray, analysis: DangerAnalysisResult) -> np.ndarray:
+def draw_danger_analysis(frame: np.ndarray, analysis: DangerAnalysisResult, draw_banner: bool = True) -> np.ndarray:
     for zone in analysis.danger_zones:
         x = int(zone.box.x)
         y = int(zone.box.y)
@@ -61,7 +61,8 @@ def draw_danger_analysis(frame: np.ndarray, analysis: DangerAnalysisResult) -> n
         cv2.rectangle(frame, (x, y), (x + width, y + height), (0, 0, 255), 3)
         cv2.putText(frame, "HUMAN AT RISK", (x, max(y - 32, 16)), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 0, 255), 2)
 
-    _draw_risk_banner(frame, analysis)
+    if draw_banner:
+        _draw_risk_banner(frame, analysis)
     return frame
 
 

@@ -36,6 +36,7 @@ export async function resolveEmergency(eventId: string) {
 }
 
 export type IncidentTimelineFilters = {
+  cameraId?: string;
   riskLevel?: string;
   eventType?: string;
   dateFrom?: string;
@@ -45,6 +46,7 @@ export type IncidentTimelineFilters = {
 export async function getIncidentTimeline(filters: IncidentTimelineFilters = {}) {
   const response = await api.get<IncidentTimelineEvent[]>('/incident-timeline', {
     params: {
+      camera_id: filters.cameraId || undefined,
       risk_level: filters.riskLevel || undefined,
       event_type: filters.eventType || undefined,
       date_from: filters.dateFrom || undefined,

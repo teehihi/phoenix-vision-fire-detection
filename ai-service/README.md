@@ -74,9 +74,19 @@ python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt -
 
 ## Chạy API
 
+Chạy ổn định với webcam/Electron:
+
+```bash
+uvicorn app.main:app --port 8100
+```
+
+Chỉ dùng tự động reload khi đang sửa code:
+
 ```bash
 uvicorn app.main:app --reload --port 8100
 ```
+
+`--reload` sẽ restart worker khi file Python thay đổi, làm WebSocket ngắt và webcam phải mở lại.
 
 Kiểm tra:
 

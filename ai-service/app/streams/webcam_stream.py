@@ -1,5 +1,6 @@
 from collections.abc import Iterator
 import platform
+import time
 
 import cv2
 import numpy as np
@@ -15,22 +16,33 @@ class WebcamStream:
         width: int = settings.camera_width,
         height: int = settings.camera_height,
         fps: int = settings.camera_fps,
+        max_read_failures: int = 30,
     ) -> None:
         self.camera_index = camera_index
         self.source = camera_index if source is None else source
         self.width = width
         self.height = height
         self.fps = fps
+        self.max_read_failures = max_read_failures
         self.backend_name: str | None = None
 
     def frames(self) -> Iterator[np.ndarray]:
         capture = self._open_capture()
+        read_failures = 0
 
         try:
             while capture.isOpened():
                 success, frame = capture.read()
                 if not success:
-                    break
+                    read_failures += 1
+                    if read_failures >= self.max_read_failures:
+                        raise RuntimeError(
+                            f"Camera source {self.source} stopped returning frames after {read_failures} read attempts."
+                        )
+                    time.sleep(1 / max(self.fps, 1))
+                    continue
+
+                read_failures = 0
                 yield frame
         finally:
             capture.release()
