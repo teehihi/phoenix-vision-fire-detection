@@ -21,7 +21,7 @@ import {
 import { type FormEvent, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CameraOverlay, EmergencyOverlay } from '../../components/effects/CinematicEffects';
-import { useRealtimeStream } from '../../hooks/useRealtimeStream';
+import { buildCameraStreamUrl, useRealtimeStream } from '../../hooks/useRealtimeStream';
 import type { ProcessedFrameMessage, RealtimeRiskPayload } from '../../types/detection';
 import { type CameraRegistryInput, type CameraRegistryItem, type CameraSource, useCameraRegistry } from './useCameraRegistry';
 
@@ -44,6 +44,7 @@ type CameraItem = {
   fire: number;
   smoke: number;
   streamUrl?: string;
+  enabled?: boolean;
   isPrimary?: boolean;
   frame?: ProcessedFrameMessage | null;
 };
@@ -75,7 +76,6 @@ const cameraRuntimeDefaults: Record<string, Partial<CameraItem>> = {
 };
 
 export function LiveDetectionPage() {
-  const { frame, state, error } = useRealtimeStream();
   const { cameras: registryCameras, loading: camerasLoading, error: cameraRegistryError, createCamera, updateCamera, deleteCamera } = useCameraRegistry();
   const [selectedCameraId, setSelectedCameraId] = useState('webcam-0');
   const [inspectorOpen, setInspectorOpen] = useState(true);
@@ -85,10 +85,17 @@ export function LiveDetectionPage() {
   const [gridMode, setGridMode] = useState<GridMode>('auto');
   const [gridMenuOpen, setGridMenuOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const selectedRegistryCamera = useMemo(() => registryCameras.find((camera) => camera.id === selectedCameraId) ?? null, [registryCameras, selectedCameraId]);
+  const selectedStreamUrl = useMemo(() => buildCameraStreamUrl(selectedRegistryCamera ?? { id: 'webcam-0', source: 'webcam', streamUrl: '' }), [selectedRegistryCamera]);
+  const streamEnabled = selectedCameraId === 'webcam-0' || Boolean(selectedRegistryCamera?.enabled && selectedRegistryCamera.streamUrl.trim());
+  const { frame, state, error } = useRealtimeStream(selectedStreamUrl, streamEnabled);
 
   const cameras = useMemo(() => {
-    return [createPrimaryCamera(frame, state), ...registryCameras.map(createRegistryCamera)];
-  }, [frame, registryCameras, state]);
+    return [
+      createPrimaryCamera(selectedCameraId === 'webcam-0' ? frame : null, selectedCameraId === 'webcam-0' ? state : 'idle'),
+      ...registryCameras.map((camera) => createRegistryCamera(camera, camera.id === selectedCameraId ? frame : null, camera.id === selectedCameraId ? state : 'idle'))
+    ];
+  }, [frame, registryCameras, selectedCameraId, state]);
 
   const filteredCameras = cameras.filter((cameraItem) => {
     const target = `${cameraItem.name} ${cameraItem.location} ${cameraItem.zone}`.toLowerCase();
@@ -305,14 +312,19 @@ function createPrimaryCamera(frame: ProcessedFrameMessage | null, state: string)
     fire: detections.filter((item) => item.label === 'fire').length,
     smoke: detections.filter((item) => item.label === 'smoke').length,
     streamUrl: '',
+    enabled: true,
     isPrimary: true,
     frame
   };
 }
 
-function createRegistryCamera(camera: CameraRegistryItem): CameraItem {
+function createRegistryCamera(camera: CameraRegistryItem, frame: ProcessedFrameMessage | null, streamState: string): CameraItem {
   const defaults = cameraRuntimeDefaults[camera.id] ?? {};
-  const enabledStatus = (defaults.status as CameraStatus | undefined) ?? 'online';
+  const hasStreamUrl = Boolean(camera.streamUrl.trim());
+  const risk = frame?.risk;
+  const detections = frame?.detections ?? [];
+  const activeStatus: CameraStatus = streamState === 'connected' ? 'online' : streamState === 'error' ? 'offline' : 'warning';
+  const configuredStatus = hasStreamUrl ? ((defaults.status as CameraStatus | undefined) ?? 'online') : 'warning';
 
   return {
     id: camera.id,
@@ -320,14 +332,16 @@ function createRegistryCamera(camera: CameraRegistryItem): CameraItem {
     location: camera.location,
     zone: camera.zone,
     source: camera.source,
-    status: camera.enabled ? enabledStatus : 'offline',
-    riskLevel: (defaults.riskLevel as RiskLevel | undefined) ?? 'LOW',
-    riskScore: defaults.riskScore ?? 0,
-    fps: camera.enabled ? defaults.fps ?? 0 : 0,
-    lastSeen: camera.enabled ? defaults.lastSeen ?? 'Vừa xong' : 'Đã tắt',
-    fire: defaults.fire ?? 0,
-    smoke: defaults.smoke ?? 0,
-    streamUrl: camera.streamUrl
+    status: camera.enabled ? (frame || streamState !== 'idle' ? activeStatus : configuredStatus) : 'offline',
+    riskLevel: risk?.riskLevel ?? ((defaults.riskLevel as RiskLevel | undefined) ?? 'LOW'),
+    riskScore: risk?.riskScore ?? (hasStreamUrl ? defaults.riskScore ?? 0 : 0),
+    fps: camera.enabled ? frame?.fps ?? (hasStreamUrl ? defaults.fps ?? 0 : 0) : 0,
+    lastSeen: camera.enabled ? (frame ? 'Vừa xong' : hasStreamUrl ? defaults.lastSeen ?? 'Đã cấu hình' : 'Chưa có stream URL') : 'Đã tắt',
+    fire: frame ? detections.filter((item) => item.label === 'fire').length : hasStreamUrl ? defaults.fire ?? 0 : 0,
+    smoke: frame ? detections.filter((item) => item.label === 'smoke').length : hasStreamUrl ? defaults.smoke ?? 0 : 0,
+    streamUrl: camera.streamUrl,
+    enabled: camera.enabled,
+    frame
   };
 }
 
@@ -523,8 +537,12 @@ function CameraInspector({
         </div>
         {cameraItem.isPrimary ? (
           <p className="mt-2 text-xs leading-5 text-slate-500">{streamError ?? `WebSocket hiện tại: ${streamState}. Camera local là nguồn stream thật từ AI service.`}</p>
+        ) : cameraItem.streamUrl ? (
+          <p className="mt-2 text-xs leading-5 text-slate-500">
+            {streamError ?? `Stream đã cấu hình. Khi chọn camera này, AI service mở nguồn ${cameraItem.source.toUpperCase()} và trả frame theo thời gian thực.`}
+          </p>
         ) : (
-          <p className="mt-2 text-xs leading-5 text-slate-500">Camera mẫu cho giao diện quản lý nhiều luồng. Khi thêm RTSP/IP camera, backend sẽ cấp stream riêng cho từng camera.</p>
+          <p className="mt-2 text-xs leading-5 text-slate-500">Chưa có URL stream. Bấm Cấu hình rồi nhập RTSP/IP URL thật để AI service bắt đầu nhận diện.</p>
         )}
       </div>
 
@@ -638,7 +656,13 @@ function CameraFormPanel({
           <FormField label="Tên camera" value={name} onChange={setName} placeholder="Ví dụ: Hành lang tầng 4" required />
           <FormField label="Khu vực" value={location} onChange={setLocation} placeholder="Ví dụ: Tầng 4" required />
           <FormField label="Nhóm vị trí" value={zone} onChange={setZone} placeholder="Ví dụ: Tòa A" required />
-          <FormField label="RTSP hoặc IP stream URL" value={streamUrl} onChange={setStreamUrl} placeholder="rtsp://username:password@camera-ip:554/stream" />
+          <FormField
+            label={source === 'webcam' ? 'Webcam index' : 'RTSP hoặc IP stream URL'}
+            value={streamUrl}
+            onChange={setStreamUrl}
+            placeholder={source === 'webcam' ? '0 hoặc 1' : 'rtsp://username:password@camera-ip:554/stream'}
+            required={source !== 'webcam'}
+          />
           <label className="block">
             <span className="text-sm font-semibold text-slate-700">Loại nguồn</span>
             <select
@@ -669,7 +693,7 @@ function CameraFormPanel({
 
           <button
             type="submit"
-            disabled={submitting || !name.trim() || !location.trim() || !zone.trim()}
+            disabled={submitting || !name.trim() || !location.trim() || !zone.trim() || (source !== 'webcam' && !streamUrl.trim())}
             className="w-full rounded-xl bg-orange-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-orange-600/20 transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {submitting ? 'Đang lưu...' : isEdit ? 'Cập nhật camera' : 'Lưu camera'}
@@ -699,7 +723,7 @@ function getCameraFormInput(cameraItem: CameraItem): CameraRegistryInput {
     zone: cameraItem.zone,
     source: cameraItem.source,
     streamUrl: cameraItem.streamUrl ?? '',
-    enabled: cameraItem.status !== 'offline'
+    enabled: cameraItem.enabled ?? cameraItem.status !== 'offline'
   };
 }
 

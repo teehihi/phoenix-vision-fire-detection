@@ -1,5 +1,6 @@
 import { ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { publicAsset } from '../../lib/assets';
 
 type LegalPageProps = {
   type: 'terms' | 'privacy';
@@ -82,7 +83,7 @@ export function LegalPage({ type }: LegalPageProps) {
         </Link>
 
         <div className="mt-6 border-b border-slate-200 pb-6">
-          <img src="/PhoenixLogoLandscape.png" alt="PhoenixVision" className="h-14 w-auto object-contain" />
+          <img src={publicAsset('PhoenixLogoLandscape.png')} alt="PhoenixVision" className="h-14 w-auto object-contain" />
           <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-orange-600">PhoenixVision</p>
           <h1 className="mt-2 text-3xl font-semibold text-slate-950">{page.title}</h1>
           <p className="mt-3 text-sm leading-6 text-slate-500">{page.description}</p>

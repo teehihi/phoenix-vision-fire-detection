@@ -6,7 +6,7 @@ type ConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'e
 const streamPath = '/api/stream/webcam?fps=12&quality=72';
 const defaultStreamUrl = normalizeStreamUrl(import.meta.env.VITE_AI_STREAM_URL);
 
-export function useRealtimeStream(streamUrl = defaultStreamUrl) {
+export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) {
   const [frame, setFrame] = useState<ProcessedFrameMessage | null>(null);
   const [state, setState] = useState<ConnectionState>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -15,6 +15,14 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl) {
   const reconnectTimer = useRef<number | null>(null);
 
   useEffect(() => {
+    if (!enabled) {
+      setFrame(null);
+      setState('idle');
+      setError(null);
+      socketRef.current?.close();
+      return;
+    }
+
     let shouldReconnect = true;
 
     function connect() {
@@ -69,9 +77,27 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl) {
       }
       socketRef.current?.close();
     };
-  }, [streamUrl]);
+  }, [enabled, streamUrl]);
 
   return { frame, state, error };
+}
+
+export function buildCameraStreamUrl(camera: { id: string; source: string; streamUrl?: string }) {
+  const rawStreamUrl = camera.streamUrl?.trim();
+  if (!rawStreamUrl) {
+    return defaultStreamUrl;
+  }
+
+  const url = new URL(defaultStreamUrl);
+  url.searchParams.set('camera_id', camera.id);
+
+  if (camera.source === 'webcam') {
+    url.searchParams.set('camera', rawStreamUrl);
+  } else {
+    url.searchParams.set('source', rawStreamUrl);
+  }
+
+  return url.toString();
 }
 
 function normalizeStreamUrl(value?: string) {

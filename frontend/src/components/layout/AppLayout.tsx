@@ -3,6 +3,7 @@ import type { MouseEvent } from 'react';
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../../features/auth/AuthContext';
+import { publicAsset } from '../../lib/assets';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -42,7 +43,7 @@ export function AppLayout() {
 
         <div className={`mb-8 flex ${collapsed ? 'justify-center px-0' : 'px-2'}`}>
           <img
-            src={collapsed ? '/PhoenixLogoOnly.png' : '/PhoenixLogoLandscape.png'}
+            src={publicAsset(collapsed ? 'PhoenixLogoOnly.png' : 'PhoenixLogoLandscape.png')}
             alt="PhoenixVision"
             className={`${collapsed ? 'h-11 w-11 rounded-xl object-contain' : 'h-12 w-auto object-contain'} transition-all duration-300`}
           />

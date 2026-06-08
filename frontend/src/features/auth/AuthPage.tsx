@@ -2,6 +2,7 @@ import { ArrowLeft, Eye, EyeOff, Lock, Mail, Phone, UserRound } from 'lucide-rea
 import { type FormEvent, type ReactNode, useRef, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { requestRegistrationOtp, verifyRegistrationOtp } from '../../lib/apiClient';
+import { publicAsset } from '../../lib/assets';
 import { useAuth } from './AuthContext';
 
 type AuthMode = 'login' | 'register';
@@ -106,7 +107,7 @@ export function AuthPage() {
     <main className="grid min-h-screen place-items-center bg-slate-50 px-4 py-5">
       <section className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-7 text-center">
-          <img src="/PhoenixLogoLandscape.png" alt="PhoenixVision" className="mx-auto h-16 w-auto object-contain" />
+          <img src={publicAsset('PhoenixLogoLandscape.png')} alt="PhoenixVision" className="mx-auto h-16 w-auto object-contain" />
           <h1 className="mt-5 text-2xl font-semibold text-slate-950">{isOtpStep ? 'Xác minh email' : isRegister ? 'Tạo tài khoản' : 'Đăng nhập'}</h1>
           <p className="mt-2 text-sm text-slate-500">
             {isOtpStep ? `Nhập mã OTP đã gửi đến ${otpEmail}.` : isRegister ? 'Bắt đầu hành trình của bạn với PhoenixVision ngay' : 'Đăng nhập để tiếp tục quản lý hệ thống PhoenixVision.'}

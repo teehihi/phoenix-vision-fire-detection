@@ -21,6 +21,8 @@ async def stream_webcam(websocket: WebSocket) -> None:
 
     query = websocket.query_params
     camera_index = int(query.get("camera", settings.camera_index))
+    camera_id = query.get("camera_id", f"webcam-{camera_index}")
+    source_url = query.get("source")
     width = int(query.get("width", 960))
     height = int(query.get("height", 540))
     target_fps = int(query.get("fps", 12))
@@ -31,7 +33,7 @@ async def stream_webcam(websocket: WebSocket) -> None:
 
     fire_detector = YoloDetector(model_path)
     person_detector = YoloDetector(person_model_path) if person_model_path else None
-    stream = WebcamStream(camera_index=camera_index, width=width, height=height, fps=target_fps)
+    stream = WebcamStream(camera_index=camera_index, source=source_url, width=width, height=height, fps=target_fps)
     fps_counter = FPSCounter()
     smoother = TemporalDetectionSmoother(StableDetectionConfig())
     analyzer = DangerAnalyzer(DangerAnalysisConfig())
@@ -59,7 +61,7 @@ async def stream_webcam(websocket: WebSocket) -> None:
             await websocket.send_json(
                 {
                     "type": "processed_frame",
-                    "cameraId": f"webcam-{camera_index}",
+                    "cameraId": camera_id,
                     "timestamp": time.time(),
                     "fps": fps,
                     "frame": encode_jpeg_base64(frame, quality=jpeg_quality),
