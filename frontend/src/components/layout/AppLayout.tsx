@@ -123,7 +123,7 @@ export function AppLayout() {
                 initial={{ opacity: 0, x: 50, scale: 0.9 }}
                 animate={{ opacity: 1, x: 0, scale: 1 }}
                 exit={{ opacity: 0, x: 50, scale: 0.95 }}
-                className={`pointer-events-auto flex flex-col gap-1 rounded-2xl border p-4 shadow-xl backdrop-blur-md ${
+                className={`pointer-events-auto rounded-2xl border p-4 shadow-xl backdrop-blur-md ${
                   toast.state === 'critical'
                     ? 'border-red-500 bg-red-950/95 text-white'
                     : toast.state === 'emergency'
@@ -131,26 +131,23 @@ export function AppLayout() {
                     : 'border-amber-400 bg-amber-950/95 text-white'
                 }`}
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    {toast.state === 'critical' ? (
-                      <Flame size={16} className="text-red-400 animate-pulse shrink-0" />
-                    ) : toast.state === 'emergency' ? (
-                      <Siren size={16} className="text-orange-400 shrink-0" />
-                    ) : (
-                      <AlertTriangle size={16} className="text-amber-400 shrink-0" />
-                    )}
-                    <span className="font-bold text-sm tracking-wide">{toast.title}</span>
-                  </div>
+                <div className="flex items-center gap-2">
+                  {toast.state === 'critical' ? (
+                    <Flame size={16} className="shrink-0 animate-pulse text-red-400" />
+                  ) : toast.state === 'emergency' ? (
+                    <Siren size={16} className="shrink-0 text-orange-400" />
+                  ) : (
+                    <AlertTriangle size={16} className="shrink-0 text-amber-400" />
+                  )}
+                  <p className="min-w-0 flex-1 text-sm font-semibold leading-5 text-white">{toast.body}</p>
                   <button
                     type="button"
                     onClick={() => dismissToast(toast.id)}
-                    className="rounded-lg p-1 text-white/60 hover:bg-white/10 hover:text-white transition"
+                    className="shrink-0 rounded-lg p-1 text-white/60 transition hover:bg-white/10 hover:text-white"
                   >
                     <X size={14} />
                   </button>
                 </div>
-                <p className="text-xs text-white/80 leading-relaxed">{toast.body}</p>
               </motion.div>
             ))}
           </AnimatePresence>

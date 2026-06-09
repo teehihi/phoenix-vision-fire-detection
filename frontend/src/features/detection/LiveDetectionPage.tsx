@@ -13,9 +13,7 @@ import {
   MapPin,
   Maximize2,
   Plus,
-  RefreshCcw,
   Search,
-  SlidersHorizontal,
   Trash2,
   Video,
   VideoOff,
@@ -138,42 +136,7 @@ export function LiveDetectionPage() {
             <p className="mt-1 text-sm text-slate-500">Theo dõi nhiều camera, phân tích cháy khói và cảnh báo rủi ro theo thời gian thực.</p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
-              <RefreshCcw size={16} />
-              Làm mới
-            </button>
-            <div className="relative">
-              <button
-                onClick={() => setGridMenuOpen((value) => !value)}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
-              >
-                <LayoutGrid size={16} />
-                Bố cục lưới
-              </button>
-
-              <AnimatePresence>
-                {gridMenuOpen ? (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                    className="absolute right-0 z-20 mt-2 w-48 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1 shadow-xl"
-                  >
-                    <GridModeButton label="Tự động" active={gridMode === 'auto'} onClick={() => selectGridMode('auto', setGridMode, setGridMenuOpen)} />
-                    <GridModeButton label="2 cột" active={gridMode === 'two'} onClick={() => selectGridMode('two', setGridMode, setGridMenuOpen)} />
-                    <GridModeButton label="3 cột" active={gridMode === 'three'} onClick={() => selectGridMode('three', setGridMode, setGridMenuOpen)} />
-                  </motion.div>
-                ) : null}
-              </AnimatePresence>
-            </div>
-            <button
-              onClick={() => setManagerOpen(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
-            >
-              <ListChecks size={16} />
-              Quản lý camera
-            </button>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             <button
               onClick={() => {
                 setCameraMutationError(null);
@@ -183,6 +146,13 @@ export function LiveDetectionPage() {
             >
               <Plus size={16} />
               Thêm camera
+            </button>
+            <button
+              onClick={() => setManagerOpen(true)}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+            >
+              <ListChecks size={16} />
+              Quản lý
             </button>
           </div>
         </div>
@@ -201,10 +171,29 @@ export function LiveDetectionPage() {
                 className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-orange-300 focus:bg-white focus:ring-4 focus:ring-orange-100"
               />
             </div>
-            <button className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
-              <SlidersHorizontal size={16} />
-              Bộ lọc
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setGridMenuOpen((value) => !value)}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                <LayoutGrid size={16} />
+                Bố cục
+              </button>
+              <AnimatePresence>
+                {gridMenuOpen ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                    className="absolute right-0 z-20 mt-2 w-48 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1 shadow-xl"
+                  >
+                    <GridModeButton label="Tự động" active={gridMode === 'auto'} onClick={() => selectGridMode('auto', setGridMode, setGridMenuOpen)} />
+                    <GridModeButton label="2 cột" active={gridMode === 'two'} onClick={() => selectGridMode('two', setGridMode, setGridMenuOpen)} />
+                    <GridModeButton label="3 cột" active={gridMode === 'three'} onClick={() => selectGridMode('three', setGridMode, setGridMenuOpen)} />
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
+            </div>
           </div>
           {cameraRegistryError ? (
             <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

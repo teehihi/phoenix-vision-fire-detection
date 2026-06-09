@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from app.db.storage import store_snapshot
 from app.models.emergency import EmergencyEvent, EmergencyState, EmergencyStatus
@@ -12,12 +12,6 @@ class EmergencyService:
     def __init__(self, repository: EmergencyRepository) -> None:
         self.repository = repository
         self.timeline_service = IncidentTimelineService(incident_timeline_repository)
-        self.cooldowns = {
-            EmergencyState.monitoring: timedelta(seconds=0),
-            EmergencyState.warning: timedelta(seconds=20),
-            EmergencyState.emergency: timedelta(seconds=12),
-            EmergencyState.critical: timedelta(seconds=6),
-        }
 
     def list_events(self, user_id: str) -> list[EmergencyEvent]:
         return self.repository.list_events(user_id)
@@ -58,7 +52,7 @@ class EmergencyService:
             }
         )
 
-        if not self._should_transition(current, next_state, now):
+        if next_state == current.state:
             return self.repository.save_status(user_id, updated)
 
         event = EmergencyEvent(
@@ -206,13 +200,6 @@ class EmergencyService:
         if normalized_level == "MEDIUM" or risk_score >= 31:
             return EmergencyState.warning
         return EmergencyState.monitoring
-
-    def _should_transition(self, current: EmergencyStatus, next_state: EmergencyState, now: datetime) -> bool:
-        if next_state != current.state:
-            return True
-
-        cooldown = self.cooldowns[next_state]
-        return now - current.last_transition_at >= cooldown
 
     @staticmethod
     def _is_escalation(previous: EmergencyState, current: EmergencyState) -> bool:

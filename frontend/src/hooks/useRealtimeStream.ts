@@ -15,7 +15,6 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<number | null>(null);
   const connectTimer = useRef<number | null>(null);
-  const lastSyncTimeRef = useRef<number>(0);
   const lastSyncRiskLevelRef = useRef<string>('LOW');
 
   useEffect(() => {
@@ -65,16 +64,11 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
           const frameMsg = message as ProcessedFrameMessage;
           setFrame(frameMsg);
 
-          const now = Date.now();
           const risk = frameMsg.risk;
           const currentRiskLevel = risk.riskLevel;
-
           const levelChanged = currentRiskLevel !== lastSyncRiskLevelRef.current;
-          const isHazard = currentRiskLevel !== 'LOW';
-          const timeElapsed = now - lastSyncTimeRef.current >= 3000;
 
-          if (levelChanged || (isHazard && timeElapsed)) {
-            lastSyncTimeRef.current = now;
+          if (levelChanged) {
             lastSyncRiskLevelRef.current = currentRiskLevel;
 
             triggerMockEmergency({

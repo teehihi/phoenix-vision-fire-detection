@@ -74,18 +74,12 @@ export function CameraMonitoringProvider({ children }: { children: ReactNode }) 
   const [cameraRuntimes, setCameraRuntimes] = useState<Record<string, CameraRuntime>>({});
   const [toasts, setToasts] = useState<MonitoringToast[]>([]);
   const lastRiskLevelByCamera = useRef<Record<string, RealtimeRiskPayload['riskLevel']>>({});
-  const toastTimers = useRef<Record<string, number>>({});
   const cameraNames = useMemo(
     () => Object.fromEntries(registryCameras.map((camera) => [camera.id, camera.name])),
     [registryCameras]
   );
 
   const dismissToast = useCallback((toastId: string) => {
-    const timerId = toastTimers.current[toastId];
-    if (timerId) {
-      window.clearTimeout(timerId);
-      delete toastTimers.current[toastId];
-    }
     setToasts((current) => current.filter((toast) => toast.id !== toastId));
   }, []);
 
@@ -93,17 +87,30 @@ export function CameraMonitoringProvider({ children }: { children: ReactNode }) 
     const riskLevel = frame.risk.riskLevel;
     const previousRiskLevel = lastRiskLevelByCamera.current[frame.cameraId] ?? 'LOW';
     lastRiskLevelByCamera.current[frame.cameraId] = riskLevel;
+    const existingToastId = frame.cameraId;
 
-    if (!shouldNotifyRiskTransition(previousRiskLevel, riskLevel)) {
+    if (riskLevel === 'LOW') {
+      dismissToast(existingToastId);
       return;
     }
 
     const cameraLabel = cameraNames[frame.cameraId] ?? (frame.cameraId === 'webcam-0' ? 'Webcam local' : frame.cameraId);
     const toast = createRiskToast(frame, cameraLabel);
-    setToasts((current) => [...current.slice(-3), toast]);
-    toastTimers.current[toast.id] = window.setTimeout(() => dismissToast(toast.id), 8000);
+    setToasts((current) => {
+      const existingIndex = current.findIndex((item) => item.cameraId === frame.cameraId);
+      if (existingIndex === -1) {
+        return [...current.slice(-3), toast];
+      }
+      const existing = current[existingIndex];
+      if (existing.body === toast.body && existing.state === toast.state) {
+        return current;
+      }
+      const next = [...current];
+      next[existingIndex] = toast;
+      return next;
+    });
 
-    if ('Notification' in window && Notification.permission === 'granted') {
+    if (riskLevel !== previousRiskLevel && 'Notification' in window && Notification.permission === 'granted') {
       new Notification(toast.title, {
         body: toast.body,
         requireInteraction: riskLevel === 'HIGH' || riskLevel === 'CRITICAL',
@@ -142,9 +149,6 @@ export function CameraMonitoringProvider({ children }: { children: ReactNode }) 
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
-    return () => {
-      Object.values(toastTimers.current).forEach((timerId) => window.clearTimeout(timerId));
-    };
   }, []);
 
   const highestEmergencyState = useMemo(() => {
@@ -235,7 +239,7 @@ function createRiskToast(frame: ProcessedFrameMessage, cameraLabel: string): Mon
   const body = `${cameraLabel}: ${frame.risk.status} - Risk ${Math.round(frame.risk.riskScore)}/100`;
 
   return {
-    id: `${frame.cameraId}-${riskLevel}-${Date.now()}`,
+    id: frame.cameraId,
     cameraId: frame.cameraId,
     title,
     body,
@@ -248,11 +252,4 @@ function riskToEmergencyState(riskLevel: RealtimeRiskPayload['riskLevel']): Emer
   if (riskLevel === 'HIGH') return 'emergency';
   if (riskLevel === 'MEDIUM') return 'warning';
   return 'monitoring';
-}
-
-function shouldNotifyRiskTransition(
-  previousRiskLevel: RealtimeRiskPayload['riskLevel'],
-  nextRiskLevel: RealtimeRiskPayload['riskLevel']
-) {
-  return nextRiskLevel !== 'LOW' && nextRiskLevel !== previousRiskLevel;
 }
