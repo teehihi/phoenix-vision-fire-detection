@@ -1,9 +1,23 @@
-import { ChevronLeft, ChevronRight, Flame, History, LayoutDashboard, LogOut, Siren, X, AlertTriangle } from 'lucide-react';
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Flame,
+  History,
+  LayoutDashboard,
+  LogOut,
+  Siren,
+  X
+} from 'lucide-react';
 import type { MouseEvent } from 'react';
 import { useState, useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../../features/auth/AuthContext';
-import { useCameraMonitoring } from '../../features/detection/CameraMonitoringContext';
+import {
+  useCameraMonitoring,
+  type MonitoringToast
+} from '../../features/detection/CameraMonitoringContext';
 import { publicAsset } from '../../lib/assets';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -113,47 +127,97 @@ export function AppLayout() {
         </div>
       </main>
 
-      {/* Floating In-App Toasts */}
       {createPortal(
-        <div className="fixed right-5 top-5 z-[9999] flex flex-col gap-3 w-80 pointer-events-none">
+        <div className="pointer-events-none fixed bottom-5 right-5 z-[90] flex w-[min(22rem,calc(100vw-2rem))] flex-col-reverse items-end gap-2">
           <AnimatePresence>
             {toasts.map(toast => (
-              <motion.div
+              <MonitoringToastCard
                 key={toast.id}
-                initial={{ opacity: 0, x: 50, scale: 0.9 }}
-                animate={{ opacity: 1, x: 0, scale: 1 }}
-                exit={{ opacity: 0, x: 50, scale: 0.95 }}
-                className={`pointer-events-auto rounded-2xl border p-4 shadow-xl backdrop-blur-md ${
-                  toast.state === 'critical'
-                    ? 'border-red-500 bg-red-950/95 text-white'
-                    : toast.state === 'emergency'
-                    ? 'border-orange-500 bg-orange-950/95 text-white'
-                    : 'border-amber-400 bg-amber-950/95 text-white'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  {toast.state === 'critical' ? (
-                    <Flame size={16} className="shrink-0 animate-pulse text-red-400" />
-                  ) : toast.state === 'emergency' ? (
-                    <Siren size={16} className="shrink-0 text-orange-400" />
-                  ) : (
-                    <AlertTriangle size={16} className="shrink-0 text-amber-400" />
-                  )}
-                  <p className="min-w-0 flex-1 text-sm font-semibold leading-5 text-white">{toast.body}</p>
-                  <button
-                    type="button"
-                    onClick={() => dismissToast(toast.id)}
-                    className="shrink-0 rounded-lg p-1 text-white/60 transition hover:bg-white/10 hover:text-white"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              </motion.div>
+                toast={toast}
+                onDismiss={dismissToast}
+              />
             ))}
           </AnimatePresence>
         </div>,
         document.body
       )}
     </div>
+  );
+}
+
+function MonitoringToastCard({
+  toast,
+  onDismiss
+}: {
+  toast: MonitoringToast;
+  onDismiss: (toastId: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
+
+  useEffect(() => {
+    setExpanded(true);
+    const collapseTimer = window.setTimeout(() => setExpanded(false), 4500);
+    return () => window.clearTimeout(collapseTimer);
+  }, [toast.id, toast.state]);
+
+  const tone = toast.state === 'critical'
+    ? 'border-red-500 bg-red-950/95'
+    : toast.state === 'emergency'
+      ? 'border-orange-500 bg-orange-950/95'
+      : 'border-amber-400 bg-amber-950/95';
+
+  const icon = toast.state === 'critical'
+    ? <Flame size={16} className="shrink-0 animate-pulse text-red-400" />
+    : toast.state === 'emergency'
+      ? <Siren size={16} className="shrink-0 text-orange-400" />
+      : <AlertTriangle size={16} className="shrink-0 text-amber-400" />;
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, x: 40, scale: 0.92 }}
+      animate={{ opacity: 1, x: 0, scale: 1 }}
+      exit={{ opacity: 0, x: 40, scale: 0.95 }}
+      className={`pointer-events-auto overflow-hidden rounded-2xl border text-white shadow-xl backdrop-blur-md ${tone} ${
+        expanded ? 'w-full' : 'w-auto max-w-full'
+      }`}
+    >
+      {expanded ? (
+        <div className="flex items-center gap-2 p-4">
+          {icon}
+          <p className="min-w-0 flex-1 text-sm font-semibold leading-5">{toast.body}</p>
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            className="shrink-0 rounded-lg p-1 text-white/60 transition hover:bg-white/10 hover:text-white"
+            aria-label="Thu gọn cảnh báo"
+          >
+            <ChevronDown size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={() => onDismiss(toast.id)}
+            className="shrink-0 rounded-lg p-1 text-white/60 transition hover:bg-white/10 hover:text-white"
+            aria-label="Ẩn cảnh báo"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="flex max-w-full items-center gap-2 px-3 py-2.5 text-left transition hover:bg-white/10"
+          aria-label={`Mở cảnh báo ${toast.cameraLabel}`}
+        >
+          {icon}
+          <span className="max-w-32 truncate text-sm font-semibold">{toast.cameraLabel}</span>
+          <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-bold">
+            {toast.riskLevel}
+          </span>
+          <span className="whitespace-nowrap text-sm font-bold">{toast.riskScore}/100</span>
+        </button>
+      )}
+    </motion.div>
   );
 }

@@ -29,9 +29,12 @@ export type CameraRuntime = {
 export type MonitoringToast = {
   id: string;
   cameraId: string;
+  cameraLabel: string;
   title: string;
   body: string;
   state: EmergencyState;
+  riskLevel: RealtimeRiskPayload['riskLevel'];
+  riskScore: number;
 };
 
 type CameraMonitoringContextValue = {
@@ -74,12 +77,17 @@ export function CameraMonitoringProvider({ children }: { children: ReactNode }) 
   const [cameraRuntimes, setCameraRuntimes] = useState<Record<string, CameraRuntime>>({});
   const [toasts, setToasts] = useState<MonitoringToast[]>([]);
   const lastRiskLevelByCamera = useRef<Record<string, RealtimeRiskPayload['riskLevel']>>({});
+  const dismissedRiskLevelByCamera = useRef<Record<string, RealtimeRiskPayload['riskLevel']>>({});
   const cameraNames = useMemo(
     () => Object.fromEntries(registryCameras.map((camera) => [camera.id, camera.name])),
     [registryCameras]
   );
 
   const dismissToast = useCallback((toastId: string) => {
+    const currentRiskLevel = lastRiskLevelByCamera.current[toastId];
+    if (currentRiskLevel) {
+      dismissedRiskLevelByCamera.current[toastId] = currentRiskLevel;
+    }
     setToasts((current) => current.filter((toast) => toast.id !== toastId));
   }, []);
 
@@ -90,7 +98,15 @@ export function CameraMonitoringProvider({ children }: { children: ReactNode }) 
     const existingToastId = frame.cameraId;
 
     if (riskLevel === 'LOW') {
-      dismissToast(existingToastId);
+      delete dismissedRiskLevelByCamera.current[frame.cameraId];
+      setToasts((current) => current.filter((toast) => toast.id !== existingToastId));
+      return;
+    }
+
+    if (riskLevel !== previousRiskLevel) {
+      delete dismissedRiskLevelByCamera.current[frame.cameraId];
+    }
+    if (dismissedRiskLevelByCamera.current[frame.cameraId] === riskLevel) {
       return;
     }
 
@@ -241,9 +257,12 @@ function createRiskToast(frame: ProcessedFrameMessage, cameraLabel: string): Mon
   return {
     id: frame.cameraId,
     cameraId: frame.cameraId,
+    cameraLabel,
     title,
     body,
-    state
+    state,
+    riskLevel,
+    riskScore: Math.round(frame.risk.riskScore)
   };
 }
 
