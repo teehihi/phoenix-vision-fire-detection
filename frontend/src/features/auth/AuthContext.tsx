@@ -6,7 +6,8 @@ import {
   onAuthStateChanged,
   updateProfile
 } from 'firebase/auth';
-import { auth } from '../../lib/firebase';
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { auth, db } from '../../lib/firebase';
 
 export type RegisterInput = {
   fullName: string;
@@ -63,6 +64,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const userCredential = await createUserWithEmailAndPassword(auth, input.email, input.password);
         await updateProfile(userCredential.user, {
           displayName: input.fullName,
+        });
+        await setDoc(doc(db, 'users', userCredential.user.uid), {
+          email: input.email.trim().toLowerCase(),
+          fullName: input.fullName,
+          phone: input.phone,
+          role: 'user',
+          emailVerified: true,
+          verifiedBy: 'otp',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
         });
         // Force local state update with displayName
         setUser({

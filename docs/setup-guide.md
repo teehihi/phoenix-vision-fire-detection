@@ -53,6 +53,55 @@ python -m app.realtime_webcam --model models/fire.pt --person-model yolo11n.pt -
 
 ## 4. Chạy Backend API
 
+Backend lưu dữ liệu theo từng tài khoản tại:
+
+```text
+users/{firebaseUid}/alerts
+users/{firebaseUid}/detections
+users/{firebaseUid}/incidentTimeline
+users/{firebaseUid}/emergencyEvents
+users/{firebaseUid}/emergencyStatuses
+```
+
+Tạo Firebase Admin key tại **Firebase Console > Project settings > Service accounts > Generate new private key**.
+Đặt file ngoài Git, rồi cấu hình `backend/.env`:
+
+```env
+FIREBASE_PROJECT_ID=phoenixvision-2105
+FIREBASE_SERVICE_ACCOUNT_PATH=/absolute/path/to/firebase-service-account.json
+```
+
+Triển khai Firestore Rules ở thư mục gốc:
+
+```bash
+npx firebase-tools deploy --only firestore:rules,storage
+```
+
+Backend xác minh Firebase ID token và luôn lấy UID từ token, không tin UID do client gửi lên.
+
+### Tự động xóa dữ liệu cũ
+
+`DATA_RETENTION_DAYS=30` thêm trường `expireAt` cho các collection group:
+
+```text
+alerts
+detections
+incidentTimeline
+emergencyEvents
+```
+
+Trong Google Cloud Console, mở **Firestore > Time-to-live**, tạo TTL policy cho từng
+collection group trên với field `expireAt`.
+
+Áp dụng vòng đời 30 ngày cho ảnh snapshot:
+
+```bash
+gcloud storage buckets update gs://phoenixvision-2105.firebasestorage.app \
+  --lifecycle-file=storage-lifecycle.json
+```
+
+Nếu đổi `DATA_RETENTION_DAYS`, cập nhật cả giá trị `age` trong `storage-lifecycle.json`.
+
 ```bash
 cd backend
 python3 -m venv .venv

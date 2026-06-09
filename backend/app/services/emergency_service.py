@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 
+from app.db.storage import store_snapshot
 from app.models.emergency import EmergencyEvent, EmergencyState, EmergencyStatus
 from app.repositories.emergency_repository import EmergencyRepository
 from app.repositories.incident_timeline_repository import incident_timeline_repository
@@ -18,14 +19,14 @@ class EmergencyService:
             EmergencyState.critical: timedelta(seconds=6),
         }
 
-    def list_events(self) -> list[EmergencyEvent]:
-        return self.repository.list_events()
+    def list_events(self, user_id: str) -> list[EmergencyEvent]:
+        return self.repository.list_events(user_id)
 
-    def get_status(self, camera_id: str = "webcam-0") -> EmergencyStatus:
-        return self.repository.get_status(camera_id)
+    def get_status(self, user_id: str, camera_id: str = "webcam-0") -> EmergencyStatus:
+        return self.repository.get_status(user_id, camera_id)
 
-    def ingest_event(self, payload: EmergencyEventCreate) -> EmergencyStatus:
-        current = self.repository.get_status(payload.camera_id)
+    def ingest_event(self, user_id: str, payload: EmergencyEventCreate) -> EmergencyStatus:
+        current = self.repository.get_status(user_id, payload.camera_id)
         next_state = self._state_for(payload.risk_score, payload.risk_level, payload.human_at_risk)
         now = datetime.utcnow()
 
@@ -46,20 +47,19 @@ class EmergencyService:
                     "updated_at": now,
                 }
             )
-            return self.repository.save_status(updated)
+            return self.repository.save_status(user_id, updated)
 
         updated = current.model_copy(
             update={
                 "risk_level": payload.risk_level.upper(),
                 "risk_score": payload.risk_score,
                 "human_at_risk": payload.human_at_risk,
-                "snapshot_url": payload.snapshot_url or current.snapshot_url,
                 "updated_at": now,
             }
         )
 
         if not self._should_transition(current, next_state, now):
-            return self.repository.save_status(updated)
+            return self.repository.save_status(user_id, updated)
 
         event = EmergencyEvent(
             camera_id=payload.camera_id,
@@ -69,12 +69,17 @@ class EmergencyService:
             risk_score=payload.risk_score,
             human_at_risk=payload.human_at_risk,
             message=payload.message or self._message_for(next_state, payload),
-            snapshot_url=payload.snapshot_url,
             escalation_count=current.escalation_count + 1 if self._is_escalation(current.state, next_state) else current.escalation_count,
             created_at=now,
         )
-        self.repository.add_event(event)
-        self.timeline_service.create_from_emergency(event)
+        should_store_snapshot = next_state != current.state or not current.snapshot_url
+        event.snapshot_url = (
+            store_snapshot(user_id, event.id, payload.snapshot_url)
+            if should_store_snapshot
+            else current.snapshot_url
+        )
+        self.repository.add_event(user_id, event)
+        self.timeline_service.create_from_emergency(user_id, event)
 
         if next_state != EmergencyState.monitoring:
             from app.models.alert import Alert
@@ -90,6 +95,7 @@ class EmergencyService:
                 severity = DetectionSeverity.medium
 
             alert_repository.add(
+                user_id,
                 Alert(
                     detection_id=event.id,
                     title=f"Cảnh báo nguy cơ: {payload.risk_level.upper()}",
@@ -102,23 +108,26 @@ class EmergencyService:
             update={
                 "state": next_state,
                 "active_event_id": event.id if next_state != EmergencyState.monitoring else None,
+                "snapshot_url": event.snapshot_url or current.snapshot_url,
                 "escalation_count": event.escalation_count,
                 "last_transition_at": now,
             }
         )
-        return self.repository.save_status(updated)
+        return self.repository.save_status(user_id, updated)
 
-    def acknowledge(self, event_id: str) -> EmergencyEvent | None:
-        event = self.repository.find_event(event_id)
+    def acknowledge(self, user_id: str, event_id: str) -> EmergencyEvent | None:
+        event = self.repository.find_event(user_id, event_id)
         if event is None:
             return None
         event.acknowledged_at = datetime.utcnow()
+        self.repository.save_event(user_id, event)
 
         # Log operator action to timeline
         from app.models.incident_timeline import IncidentEventType, IncidentRiskLevel
         from app.schemas.incident_timeline import IncidentTimelineEventCreate
 
         self.timeline_service.create_event(
+            user_id,
             IncidentTimelineEventCreate(
                 camera_id=event.camera_id,
                 event_type=IncidentEventType.operator_action,
@@ -138,14 +147,16 @@ class EmergencyService:
         )
         return event
 
-    def resolve(self, event_id: str) -> EmergencyEvent | None:
-        event = self.repository.find_event(event_id)
+    def resolve(self, user_id: str, event_id: str) -> EmergencyEvent | None:
+        event = self.repository.find_event(user_id, event_id)
         if event is None:
             return None
 
         event.resolved_at = datetime.utcnow()
-        status = self.repository.get_status(event.camera_id)
+        self.repository.save_event(user_id, event)
+        status = self.repository.get_status(user_id, event.camera_id)
         self.repository.save_status(
+            user_id,
             status.model_copy(
                 update={
                     "state": EmergencyState.monitoring,
@@ -153,6 +164,7 @@ class EmergencyService:
                     "risk_level": "LOW",
                     "risk_score": 0.0,
                     "human_at_risk": False,
+                    "snapshot_url": None,
                     "last_transition_at": event.resolved_at,
                     "updated_at": event.resolved_at,
                 }
@@ -164,6 +176,7 @@ class EmergencyService:
         from app.schemas.incident_timeline import IncidentTimelineEventCreate
 
         self.timeline_service.create_event(
+            user_id,
             IncidentTimelineEventCreate(
                 camera_id=event.camera_id,
                 event_type=IncidentEventType.operator_action,

@@ -12,6 +12,7 @@ class IncidentTimelineService:
 
     def list_events(
         self,
+        user_id: str,
         camera_id: str | None = None,
         risk_level: IncidentRiskLevel | None = None,
         event_type: IncidentEventType | None = None,
@@ -19,6 +20,7 @@ class IncidentTimelineService:
         date_to: datetime | None = None,
     ) -> list[IncidentTimelineEvent]:
         return self.repository.list(
+            user_id=user_id,
             camera_id=camera_id,
             risk_level=risk_level,
             event_type=event_type,
@@ -26,7 +28,7 @@ class IncidentTimelineService:
             date_to=date_to,
         )
 
-    def create_event(self, payload: IncidentTimelineEventCreate) -> IncidentTimelineEvent:
+    def create_event(self, user_id: str, payload: IncidentTimelineEventCreate) -> IncidentTimelineEvent:
         event = IncidentTimelineEvent(
             camera_id=payload.camera_id,
             event_type=payload.event_type,
@@ -42,9 +44,9 @@ class IncidentTimelineService:
             snapshot_url=payload.snapshot_url,
             metadata=payload.metadata,
         )
-        return self.repository.add(event)
+        return self.repository.add(user_id, event)
 
-    def create_from_emergency(self, event: EmergencyEvent) -> IncidentTimelineEvent:
+    def create_from_emergency(self, user_id: str, event: EmergencyEvent) -> IncidentTimelineEvent:
         timeline_event = IncidentTimelineEvent(
             camera_id=event.camera_id,
             event_type=IncidentEventType.emergency_transition,
@@ -62,10 +64,10 @@ class IncidentTimelineService:
             },
             created_at=event.created_at,
         )
-        return self.repository.add(timeline_event)
+        return self.repository.add(user_id, timeline_event)
 
-    def delete_event(self, event_id: str) -> bool:
-        return self.repository.delete(event_id)
+    def delete_event(self, user_id: str, event_id: str) -> bool:
+        return self.repository.delete(user_id, event_id)
 
-    def clear_all_events(self) -> None:
-        self.repository.clear_all()
+    def clear_all_events(self, user_id: str) -> None:
+        self.repository.clear_all(user_id)

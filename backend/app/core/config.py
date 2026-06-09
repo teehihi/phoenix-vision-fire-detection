@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     smtp_from_name: str = "PhoenixVision"
     smtp_from_email: str = ""
     smtp_use_tls: bool = True
+    firebase_project_id: str = ""
+    firebase_storage_bucket: str = ""
+    firebase_service_account_path: str = ""
+    firebase_service_account_json: str = ""
+    data_retention_days: int = 30
 
     model_config = SettingsConfigDict(env_file=BACKEND_ROOT / ".env", env_file_encoding="utf-8", extra="ignore")
 

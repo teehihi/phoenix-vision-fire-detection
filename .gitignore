@@ -22,6 +22,11 @@ dist/
 # Environment
 .env
 .env.local
+backend/secrets/*
+*service-account*.json
+*firebase-admin*.json
+phoenixvision-2105-*.json
+!backend/secrets/phoenixvision-firebase-admin.example.json
 
 # Models and media
 *.pt

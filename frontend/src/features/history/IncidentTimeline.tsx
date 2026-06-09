@@ -1,5 +1,6 @@
 import { AlertTriangle, Camera, Clock, Flame, ShieldAlert, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { SecureStorageImage } from '../../components/ui/SecureStorageImage';
 import { getIncidentTimeline, type IncidentTimelineFilters, deleteTimelineEvent, clearAllTimelineEvents } from '../../lib/apiClient';
 import type { IncidentTimelineEvent } from '../../types/detection';
 
@@ -164,7 +165,7 @@ function TimelineItem({ event, onDelete }: { event: IncidentTimelineEvent; onDel
       </div>
 
       {event.snapshotUrl ? (
-        <img src={event.snapshotUrl} alt={event.title} className="h-28 w-full rounded-md object-cover md:h-full" />
+        <SecureStorageImage source={event.snapshotUrl} alt={event.title} className="h-28 w-full rounded-md object-cover md:h-full" />
       ) : (
         <div className="hidden items-center justify-center rounded-md bg-slate-100 text-slate-400 md:flex">
           <AlertTriangle size={20} />

@@ -12,17 +12,17 @@ class DetectionService:
         self.ai_client = AIServiceClient()
         self.alert_service = AlertService(alert_repository)
 
-    def list_events(self) -> list[DetectionEvent]:
-        return self.repository.list()
+    def list_events(self, user_id: str) -> list[DetectionEvent]:
+        return self.repository.list(user_id)
 
-    async def detect_frame(self, image_bytes: bytes, camera_id: str) -> list[DetectionEvent]:
+    async def detect_frame(self, user_id: str, image_bytes: bytes, camera_id: str) -> list[DetectionEvent]:
         ai_results = await self.ai_client.detect_frame(image_bytes, camera_id)
         events = [self._to_event(item, camera_id) for item in ai_results]
-        stored = self.repository.add_many(events)
+        stored = self.repository.add_many(user_id, events)
 
         for event in stored:
             if event.confidence >= settings.alert_confidence_threshold:
-                self.alert_service.create_from_detection(event)
+                self.alert_service.create_from_detection(user_id, event)
 
         return stored
 

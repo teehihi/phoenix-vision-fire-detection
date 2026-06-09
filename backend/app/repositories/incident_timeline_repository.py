@@ -1,21 +1,25 @@
 from datetime import datetime
 
+from app.db.firestore import delete_collection, get_user_collection, with_expiration
 from app.models.incident_timeline import IncidentEventType, IncidentRiskLevel, IncidentTimelineEvent
 
 
 class IncidentTimelineRepository:
-    def __init__(self) -> None:
-        self._events: list[IncidentTimelineEvent] = []
+    collection_name = "incidentTimeline"
 
     def list(
         self,
+        user_id: str,
         camera_id: str | None = None,
         risk_level: IncidentRiskLevel | None = None,
         event_type: IncidentEventType | None = None,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
     ) -> list[IncidentTimelineEvent]:
-        events = self._events
+        events = [
+            IncidentTimelineEvent.model_validate(document.to_dict())
+            for document in get_user_collection(user_id, self.collection_name).stream()
+        ]
         if camera_id:
             events = [event for event in events if event.camera_id == camera_id]
         if risk_level:
@@ -29,17 +33,20 @@ class IncidentTimelineRepository:
 
         return sorted(events, key=lambda event: event.created_at, reverse=True)
 
-    def add(self, event: IncidentTimelineEvent) -> IncidentTimelineEvent:
-        self._events.append(event)
+    def add(self, user_id: str, event: IncidentTimelineEvent) -> IncidentTimelineEvent:
+        data = with_expiration(event.model_dump(mode="python"))
+        get_user_collection(user_id, self.collection_name).document(event.id).set(data)
         return event
 
-    def delete(self, event_id: str) -> bool:
-        initial_len = len(self._events)
-        self._events = [event for event in self._events if event.id != event_id]
-        return len(self._events) < initial_len
+    def delete(self, user_id: str, event_id: str) -> bool:
+        reference = get_user_collection(user_id, self.collection_name).document(event_id)
+        if not reference.get().exists:
+            return False
+        reference.delete()
+        return True
 
-    def clear_all(self) -> None:
-        self._events.clear()
+    def clear_all(self, user_id: str) -> None:
+        delete_collection(get_user_collection(user_id, self.collection_name))
 
 
 incident_timeline_repository = IncidentTimelineRepository()

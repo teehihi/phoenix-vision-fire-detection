@@ -3,6 +3,7 @@ import { AlertTriangle, Bell, CheckCircle2, Flame, ShieldCheck, Siren, X } from 
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { EmergencyOverlay } from '../../components/effects/CinematicEffects';
+import { SecureStorageImage } from '../../components/ui/SecureStorageImage';
 import { getEmergencyStatus, acknowledgeEmergency, resolveEmergency } from '../../lib/apiClient';
 import type { EmergencyState, EmergencyStatus } from '../../types/detection';
 import { useEmergencyTone } from '../../hooks/useEmergencyTone';
@@ -189,7 +190,7 @@ export function EmergencyPanel({ compact = false }: EmergencyPanelProps) {
 
       {status?.snapshotUrl ? (
         <div className="mt-4 overflow-hidden rounded-md border border-white/40 bg-black/10">
-          <img src={status.snapshotUrl} alt="Emergency snapshot" className="max-h-56 w-full object-cover" />
+          <SecureStorageImage source={status.snapshotUrl} alt="Emergency snapshot" className="max-h-56 w-full object-cover" />
         </div>
       ) : null}
 

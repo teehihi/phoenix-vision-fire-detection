@@ -1,8 +1,17 @@
 import axios from 'axios';
+import { auth } from './firebase';
 import type { AlertEvent, DetectionEvent, EmergencyEvent, EmergencyStatus, IncidentTimelineEvent } from '../types/detection';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1'
+});
+
+api.interceptors.request.use(async (config) => {
+  const user = auth.currentUser;
+  if (user) {
+    config.headers.Authorization = `Bearer ${await user.getIdToken()}`;
+  }
+  return config;
 });
 
 export async function getDetectionHistory() {
