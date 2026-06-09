@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ProcessedFrameMessage } from '../types/detection';
 import { triggerMockEmergency } from '../lib/apiClient';
 
-type ConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error';
+export type ConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error';
 
 const streamPath = '/api/stream/webcam?fps=12&quality=72';
 const defaultStreamUrl = normalizeStreamUrl(import.meta.env.VITE_AI_STREAM_URL);

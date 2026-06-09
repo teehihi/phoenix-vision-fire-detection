@@ -6,7 +6,6 @@ import { EmergencyOverlay } from '../../components/effects/CinematicEffects';
 import { SecureStorageImage } from '../../components/ui/SecureStorageImage';
 import { getEmergencyStatus, acknowledgeEmergency, resolveEmergency } from '../../lib/apiClient';
 import type { EmergencyState, EmergencyStatus } from '../../types/detection';
-import { useEmergencyTone } from '../../hooks/useEmergencyTone';
 
 const stateStyles: Record<EmergencyState, { label: string; className: string; icon: typeof ShieldCheck }> = {
   monitoring: {

@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { CameraOverlay, CinematicShell, DangerBeacon, RiskPulseRing } from '../../components/effects/CinematicEffects';
 import { EmergencyPanel } from '../emergency/EmergencyPanel';
 import { getEmergencyStatus, getIncidentTimeline, triggerMockEmergency } from '../../lib/apiClient';
-import { useRealtimeStream } from '../../hooks/useRealtimeStream';
 import type { EmergencyStatus, IncidentTimelineEvent } from '../../types/detection';
+import { useCameraMonitoring } from '../detection/CameraMonitoringContext';
 
 const variants = {
   hidden: { opacity: 0, y: 16 },
@@ -49,7 +49,7 @@ export function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [testLoading, setTestLoading] = useState(false);
   
-  const primaryStream = useRealtimeStream();
+  const { primaryStream } = useCameraMonitoring();
 
   useEffect(() => {
     let isMounted = true;

@@ -4,6 +4,7 @@ import { AlertsPage } from '../features/alerts/AlertsPage';
 import { AuthPage } from '../features/auth/AuthPage';
 import { ProtectedRoute } from '../features/auth/ProtectedRoute';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
+import { CameraMonitoringProvider } from '../features/detection/CameraMonitoringContext';
 import { LiveDetectionPage } from '../features/detection/LiveDetectionPage';
 import { HistoryPage } from '../features/history/HistoryPage';
 import { LegalPage } from '../features/legal/LegalPage';
@@ -15,7 +16,7 @@ export function AppRoutes() {
       <Route path="/terms" element={<LegalPage type="terms" />} />
       <Route path="/privacy" element={<LegalPage type="privacy" />} />
       <Route element={<ProtectedRoute />}>
-        <Route element={<AppLayout />}>
+        <Route element={<CameraMonitoringProvider><AppLayout /></CameraMonitoringProvider>}>
           <Route index element={<DashboardPage />} />
           <Route path="/live" element={<LiveDetectionPage />} />
           <Route path="/history" element={<HistoryPage />} />

@@ -3,12 +3,11 @@ import type { MouseEvent } from 'react';
 import { useState, useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../../features/auth/AuthContext';
+import { useCameraMonitoring } from '../../features/detection/CameraMonitoringContext';
 import { publicAsset } from '../../lib/assets';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { getEmergencyStatus } from '../../lib/apiClient';
 import { useEmergencyTone } from '../../hooks/useEmergencyTone';
-import type { EmergencyStatus } from '../../types/detection';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -22,11 +21,10 @@ export function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [toggleTop, setToggleTop] = useState(44);
 
-  const [status, setStatus] = useState<EmergencyStatus | null>(null);
+  const { toasts, dismissToast, highestEmergencyState } = useCameraMonitoring();
   const [soundEnabled, setSoundEnabled] = useState(() => {
     return localStorage.getItem('soundEnabled') !== 'false';
   });
-  const [toasts, setToasts] = useState<Array<{ id: string; title: string; body: string; state: string }>>([]);
 
   useEffect(() => {
     const handleSoundChanged = () => {
@@ -36,89 +34,7 @@ export function AppLayout() {
     return () => window.removeEventListener('sound-enabled-changed', handleSoundChanged);
   }, []);
 
-  useEmergencyTone(status?.state ?? 'monitoring', soundEnabled);
-
-  // Request browser notification permission on mount
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  }, []);
-
-  async function loadStatus() {
-    try {
-      const nextStatus = await getEmergencyStatus();
-      
-      setStatus(prevStatus => {
-        if (nextStatus) {
-          const prevState = prevStatus?.state ?? 'monitoring';
-          const nextState = nextStatus.state;
-          const nextEventId = nextStatus.activeEventId;
-          const prevEventId = prevStatus?.activeEventId;
-
-          // Trigger notification if state escalated or there is a new active event
-          if (
-            (nextState === 'warning' || nextState === 'emergency' || nextState === 'critical') &&
-            (nextState !== prevState || nextEventId !== prevEventId)
-          ) {
-            const toastId = Math.random().toString(36).substring(2, 9);
-            let toastTitle = 'PHÁT HIỆN HỎA HOẠN';
-            let toastBody = `Trạng thái: ${nextState.toUpperCase()} - Mức độ rủi ro: ${Math.round(nextStatus.riskScore)}%`;
-
-            if (nextState === 'critical') {
-              toastTitle = 'CẢNH BÁO NGUY HIỂM';
-              toastBody = `NGUY HIỂM! Phát hiện cháy và người gặp nạn (${Math.round(nextStatus.riskScore)}%)`;
-            } else if (nextState === 'emergency') {
-              toastTitle = 'PHÁT HIỆN HỎA HOẠN';
-              toastBody = `Phát hiện nguy cơ cháy nổ cao (${Math.round(nextStatus.riskScore)}%)`;
-            } else if (nextState === 'warning') {
-              toastTitle = 'CẢNH BÁO NGUY CƠ';
-              toastBody = `Cảnh báo nguy cơ mức độ trung bình (${Math.round(nextStatus.riskScore)}%)`;
-            }
-
-            setToasts(prev => [...prev, { id: toastId, title: toastTitle, body: toastBody, state: nextState }]);
-            
-            setTimeout(() => {
-              setToasts(prev => prev.filter(t => t.id !== toastId));
-            }, 8000);
-
-            if ('Notification' in window && Notification.permission === 'granted') {
-              let title = 'CẢNH BÁO CHÁY: ' + nextState.toUpperCase();
-              let bodyText = `Phát hiện nguy cơ hỏa hoạn!\nMức độ rủi ro: ${Math.round(nextStatus.riskScore)}%`;
-              
-              if (nextState === 'critical') {
-                title = 'CẢNH BÁO NGUY HIỂM: CRITICAL';
-                bodyText = `NGUY HIỂM! Phát hiện cháy và người gặp nạn!\nMức độ rủi ro: ${Math.round(nextStatus.riskScore)}%`;
-              } else if (nextState === 'emergency') {
-                title = 'PHÁT HIỆN HỎA HOẠN: HIGH RISK';
-                bodyText = `Phát hiện nguy cơ cháy nổ cao!\nMức độ rủi ro: ${Math.round(nextStatus.riskScore)}%`;
-              } else if (nextState === 'warning') {
-                title = 'CẢNH BÁO NGUY CƠ: WARNING';
-                bodyText = `Cảnh báo nguy cơ mức độ trung bình!\nMức độ rủi ro: ${Math.round(nextStatus.riskScore)}%`;
-              }
-
-              new Notification(title, {
-                body: bodyText,
-                requireInteraction: true,
-                silent: false,
-              });
-            }
-          }
-        }
-        return nextStatus;
-      });
-    } catch {
-      // Ignore background errors
-    }
-  }
-
-  useEffect(() => {
-    loadStatus();
-    const intervalId = window.setInterval(loadStatus, 3000);
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, []);
+  useEmergencyTone(highestEmergencyState, soundEnabled);
 
   function handleSidebarMouseMove(event: MouseEvent<HTMLElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -228,7 +144,7 @@ export function AppLayout() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+                    onClick={() => dismissToast(toast.id)}
                     className="rounded-lg p-1 text-white/60 hover:bg-white/10 hover:text-white transition"
                   >
                     <X size={14} />

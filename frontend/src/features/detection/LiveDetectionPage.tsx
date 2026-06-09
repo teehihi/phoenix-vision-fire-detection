@@ -23,23 +23,17 @@ import {
   WifiOff,
   X
 } from 'lucide-react';
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { buildCameraStreamUrl, useRealtimeStream } from '../../hooks/useRealtimeStream';
 import { getIncidentTimeline } from '../../lib/apiClient';
 import type { IncidentTimelineEvent, ProcessedFrameMessage, RealtimeRiskPayload } from '../../types/detection';
-import { type CameraRegistryInput, type CameraRegistryItem, type CameraSource, useCameraRegistry } from './useCameraRegistry';
+import { type CameraRegistryInput, type CameraRegistryItem, type CameraSource } from './useCameraRegistry';
+import { useCameraMonitoring } from './CameraMonitoringContext';
 
 type CameraStatus = 'online' | 'warning' | 'offline';
 type RiskLevel = RealtimeRiskPayload['riskLevel'];
 type GridMode = 'auto' | 'two' | 'three';
 type CameraPanelState = { mode: 'create' } | { mode: 'edit'; camera: CameraItem };
-type CameraRuntime = {
-  frame: ProcessedFrameMessage | null;
-  state: string;
-  error: string | null;
-};
-
 type CameraItem = {
   id: string;
   name: string;
@@ -87,37 +81,27 @@ const cameraRuntimeDefaults: Record<string, Partial<CameraItem>> = {
 
 export function LiveDetectionPage() {
   const {
-    cameras: registryCameras,
-    loading: camerasLoading,
-    error: cameraRegistryError,
+    registryCameras,
+    camerasLoading,
+    cameraRegistryError,
     createCamera,
     updateCamera,
     deleteCamera,
     deleteCameras,
-    setCamerasEnabled
-  } = useCameraRegistry();
+    setCamerasEnabled,
+    primaryStream,
+    cameraRuntimes
+  } = useCameraMonitoring();
   const [selectedCameraId, setSelectedCameraId] = useState('webcam-0');
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [fullscreenCameraId, setFullscreenCameraId] = useState<string | null>(null);
   const [cameraPanel, setCameraPanel] = useState<CameraPanelState | null>(null);
   const [managerOpen, setManagerOpen] = useState(false);
-  const [cameraRuntimes, setCameraRuntimes] = useState<Record<string, CameraRuntime>>({});
   const [cameraMutationError, setCameraMutationError] = useState<string | null>(null);
   const [gridMode, setGridMode] = useState<GridMode>('auto');
   const [gridMenuOpen, setGridMenuOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [showFrameAiInfo, setShowFrameAiInfo] = useState(true);
-  const primaryStream = useRealtimeStream();
-  const updateCameraRuntime = useCallback((cameraId: string, runtime: CameraRuntime) => {
-    setCameraRuntimes((current) => {
-      const previous = current[cameraId];
-      if (previous?.frame === runtime.frame && previous?.state === runtime.state && previous?.error === runtime.error) {
-        return current;
-      }
-      return { ...current, [cameraId]: runtime };
-    });
-  }, []);
-
   const cameras = useMemo(() => {
     return [
       createPrimaryCamera(primaryStream.frame, primaryStream.state),
@@ -146,9 +130,6 @@ export function LiveDetectionPage() {
 
   return (
     <div className="space-y-6">
-      {registryCameras.map((camera) => (
-        <CameraStreamConnector key={camera.id} camera={camera} onUpdate={updateCameraRuntime} />
-      ))}
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div>
@@ -363,28 +344,6 @@ export function LiveDetectionPage() {
       setCameraMutationError(deleteError instanceof Error ? deleteError.message : 'Không thể xóa camera.');
     }
   }
-}
-
-function CameraStreamConnector({
-  camera,
-  onUpdate
-}: {
-  camera: CameraRegistryItem;
-  onUpdate: (cameraId: string, runtime: CameraRuntime) => void;
-}) {
-  const streamUrl = useMemo(() => buildCameraStreamUrl(camera), [camera]);
-  const enabled = camera.enabled && Boolean(camera.streamUrl.trim());
-  const stream = useRealtimeStream(streamUrl, enabled);
-
-  useEffect(() => {
-    onUpdate(camera.id, {
-      frame: stream.frame,
-      state: stream.state,
-      error: stream.error
-    });
-  }, [camera.id, onUpdate, stream.error, stream.frame, stream.state]);
-
-  return null;
 }
 
 function createPrimaryCamera(frame: ProcessedFrameMessage | null, state: string): CameraItem {
