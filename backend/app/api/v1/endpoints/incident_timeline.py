@@ -31,3 +31,18 @@ async def list_incident_timeline(
 @router.post("", response_model=IncidentTimelineEventResponse)
 async def create_incident_event(payload: IncidentTimelineEventCreate) -> IncidentTimelineEventResponse:
     return service.create_event(payload)
+
+
+@router.delete("/{event_id}")
+async def delete_incident_event(event_id: str):
+    from fastapi import HTTPException
+    success = service.delete_event(event_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Không tìm thấy sự kiện này.")
+    return {"status": "success", "message": "Xóa sự kiện thành công."}
+
+
+@router.delete("")
+async def clear_all_incident_events():
+    service.clear_all_events()
+    return {"status": "success", "message": "Xóa tất cả sự kiện thành công."}

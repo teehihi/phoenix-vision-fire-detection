@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ProcessedFrameMessage } from '../types/detection';
+import { triggerMockEmergency } from '../lib/apiClient';
 
 type ConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error';
 
@@ -14,6 +15,8 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<number | null>(null);
   const connectTimer = useRef<number | null>(null);
+  const lastSyncTimeRef = useRef<number>(0);
+  const lastSyncRiskLevelRef = useRef<string>('LOW');
 
   useEffect(() => {
     if (!enabled) {
@@ -59,7 +62,32 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
         }
 
         if (message.type === 'processed_frame') {
-          setFrame(message as ProcessedFrameMessage);
+          const frameMsg = message as ProcessedFrameMessage;
+          setFrame(frameMsg);
+
+          const now = Date.now();
+          const risk = frameMsg.risk;
+          const currentRiskLevel = risk.riskLevel;
+
+          const levelChanged = currentRiskLevel !== lastSyncRiskLevelRef.current;
+          const isHazard = currentRiskLevel !== 'LOW';
+          const timeElapsed = now - lastSyncTimeRef.current >= 3000;
+
+          if (levelChanged || (isHazard && timeElapsed)) {
+            lastSyncTimeRef.current = now;
+            lastSyncRiskLevelRef.current = currentRiskLevel;
+
+            triggerMockEmergency({
+              cameraId: frameMsg.cameraId,
+              riskLevel: currentRiskLevel,
+              riskScore: risk.riskScore,
+              humanAtRisk: risk.humanAtRisk,
+              message: `Hệ thống tự động phát hiện cảnh báo nguy cơ: ${risk.status}`,
+              snapshotUrl: `data:image/jpeg;base64,${frameMsg.frame}`
+            }).catch(() => {
+              // Ignore background sync errors
+            });
+          }
         }
         if (message.type === 'stream_error') {
           setError(message.message ?? 'Realtime stream returned an error.');

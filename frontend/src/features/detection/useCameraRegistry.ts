@@ -1,6 +1,4 @@
-import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { useCallback, useEffect, useState } from 'react';
-import { db } from '../../lib/firebase';
 import { useAuth } from '../auth/AuthContext';
 
 export type CameraSource = 'webcam' | 'rtsp' | 'ip';
@@ -62,76 +60,77 @@ export function useCameraRegistry() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const getStorageKey = useCallback(() => {
+    return user ? `phoenix_cameras_${user.uid}` : '';
+  }, [user]);
+
+  const loadCameras = useCallback(() => {
+    const key = getStorageKey();
+    if (!key) return;
+    try {
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        setCameras(JSON.parse(stored));
+      } else {
+        // Seed defaults
+        localStorage.setItem(key, JSON.stringify(defaultCameras));
+        setCameras(defaultCameras);
+      }
+    } catch (e: any) {
+      setError(e.message || 'Lỗi tải danh sách camera');
+    } finally {
+      setLoading(false);
+    }
+  }, [getStorageKey]);
+
   useEffect(() => {
     if (!user) {
       setCameras([]);
       setLoading(false);
       return;
     }
-
-    setLoading(true);
-    const camerasCollection = collection(db, 'users', user.uid, 'cameras');
-    const cameraQuery = query(camerasCollection, orderBy('createdAt', 'asc'));
-
-    return onSnapshot(
-      cameraQuery,
-      (snapshot) => {
-        const items = snapshot.docs.map((cameraDoc) => {
-          const data = cameraDoc.data() as Omit<CameraRegistryItem, 'id'>;
-          return {
-            id: cameraDoc.id,
-            name: data.name,
-            location: data.location,
-            zone: data.zone,
-            source: data.source,
-            streamUrl: data.streamUrl ?? '',
-            enabled: data.enabled ?? true
-          };
-        });
-
-        setCameras(items);
-        setLoading(false);
-        setError(null);
-
-        if (snapshot.empty) {
-          seedDefaultCameras(user.uid).catch(() => setError('Không thể tạo dữ liệu camera mặc định trên Firestore.'));
-        }
-      },
-      (snapshotError) => {
-        setError(snapshotError.message);
-        setLoading(false);
-      }
-    );
-  }, [user]);
+    loadCameras();
+  }, [user, loadCameras]);
 
   const createCamera = useCallback(async (input: CameraRegistryInput) => {
     if (!user) {
       throw new Error('Bạn cần đăng nhập trước khi thêm camera.');
     }
-    const camerasCollection = collection(db, 'users', user.uid, 'cameras');
-    await addDoc(camerasCollection, {
+    const key = getStorageKey();
+    const stored = localStorage.getItem(key);
+    const list: CameraRegistryItem[] = stored ? JSON.parse(stored) : [];
+    const newCam: CameraRegistryItem = {
       ...input,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
-  }, [user]);
+      id: 'cam-' + Math.random().toString(36).substring(2, 9)
+    };
+    list.push(newCam);
+    localStorage.setItem(key, JSON.stringify(list));
+    setCameras(list);
+  }, [user, getStorageKey]);
 
   const updateCamera = useCallback(async (cameraId: string, input: CameraRegistryInput) => {
     if (!user) {
       throw new Error('Bạn cần đăng nhập trước khi sửa camera.');
     }
-    await updateDoc(doc(db, 'users', user.uid, 'cameras', cameraId), {
-      ...input,
-      updatedAt: serverTimestamp()
-    });
-  }, [user]);
+    const key = getStorageKey();
+    const stored = localStorage.getItem(key);
+    let list: CameraRegistryItem[] = stored ? JSON.parse(stored) : [];
+    list = list.map(cam => cam.id === cameraId ? { ...cam, ...input } : cam);
+    localStorage.setItem(key, JSON.stringify(list));
+    setCameras(list);
+  }, [user, getStorageKey]);
 
   const deleteCamera = useCallback(async (cameraId: string) => {
     if (!user) {
       throw new Error('Bạn cần đăng nhập trước khi xóa camera.');
     }
-    await deleteDoc(doc(db, 'users', user.uid, 'cameras', cameraId));
-  }, [user]);
+    const key = getStorageKey();
+    const stored = localStorage.getItem(key);
+    let list: CameraRegistryItem[] = stored ? JSON.parse(stored) : [];
+    list = list.filter(cam => cam.id !== cameraId);
+    localStorage.setItem(key, JSON.stringify(list));
+    setCameras(list);
+  }, [user, getStorageKey]);
 
   return {
     cameras,
@@ -141,21 +140,4 @@ export function useCameraRegistry() {
     updateCamera,
     deleteCamera
   };
-}
-
-async function seedDefaultCameras(userId: string) {
-  await Promise.all(
-    defaultCameras.map((camera) =>
-      setDoc(doc(db, 'users', userId, 'cameras', camera.id), {
-        name: camera.name,
-        location: camera.location,
-        zone: camera.zone,
-        source: camera.source,
-        streamUrl: camera.streamUrl,
-        enabled: camera.enabled,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      })
-    )
-  );
 }

@@ -15,7 +15,27 @@ export async function getAlerts() {
   return response.data;
 }
 
-export async function getEmergencyStatus(cameraId = 'webcam-01') {
+export async function deleteAlert(alertId: string) {
+  const response = await api.delete(`/alerts/${alertId}`);
+  return response.data;
+}
+
+export async function clearAllAlerts() {
+  const response = await api.delete('/alerts');
+  return response.data;
+}
+
+export async function deleteTimelineEvent(eventId: string) {
+  const response = await api.delete(`/incident-timeline/${eventId}`);
+  return response.data;
+}
+
+export async function clearAllTimelineEvents() {
+  const response = await api.delete('/incident-timeline');
+  return response.data;
+}
+
+export async function getEmergencyStatus(cameraId = 'webcam-0') {
   const response = await api.get<EmergencyStatus>('/emergency/current', { params: { camera_id: cameraId } });
   return response.data;
 }
@@ -32,6 +52,18 @@ export async function acknowledgeEmergency(eventId: string) {
 
 export async function resolveEmergency(eventId: string) {
   const response = await api.post<EmergencyEvent>(`/emergency/events/${eventId}/resolve`);
+  return response.data;
+}
+
+export async function triggerMockEmergency(payload: {
+  cameraId?: string;
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  riskScore: number;
+  humanAtRisk: boolean;
+  message?: string;
+  snapshotUrl?: string;
+}) {
+  const response = await api.post('/emergency/events', payload);
   return response.data;
 }
 

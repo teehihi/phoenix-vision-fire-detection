@@ -16,7 +16,7 @@ async def list_detections() -> list[DetectionEventResponse]:
 @router.post("/frame", response_model=list[DetectionEventResponse])
 async def detect_frame(
     file: UploadFile = File(...),
-    camera_id: str = Form("webcam-01"),
+    camera_id: str = Form("webcam-0"),
 ) -> list[DetectionEventResponse]:
     image_bytes = await file.read()
     return await service.detect_frame(image_bytes=image_bytes, camera_id=camera_id)

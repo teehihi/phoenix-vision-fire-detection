@@ -33,5 +33,13 @@ class IncidentTimelineRepository:
         self._events.append(event)
         return event
 
+    def delete(self, event_id: str) -> bool:
+        initial_len = len(self._events)
+        self._events = [event for event in self._events if event.id != event_id]
+        return len(self._events) < initial_len
+
+    def clear_all(self) -> None:
+        self._events.clear()
+
 
 incident_timeline_repository = IncidentTimelineRepository()

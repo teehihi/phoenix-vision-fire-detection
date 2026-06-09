@@ -6,7 +6,7 @@ from app.models.emergency import EmergencyState
 
 
 class EmergencyEventCreate(BaseModel):
-    camera_id: str = Field(default="webcam-01", validation_alias="cameraId")
+    camera_id: str = Field(default="webcam-0", validation_alias="cameraId")
     risk_level: str = Field(validation_alias="riskLevel")
     risk_score: float = Field(validation_alias="riskScore")
     human_at_risk: bool = Field(default=False, validation_alias="humanAtRisk")

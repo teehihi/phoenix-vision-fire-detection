@@ -63,3 +63,9 @@ class IncidentTimelineService:
             created_at=event.created_at,
         )
         return self.repository.add(timeline_event)
+
+    def delete_event(self, event_id: str) -> bool:
+        return self.repository.delete(event_id)
+
+    def clear_all_events(self) -> None:
+        self.repository.clear_all()

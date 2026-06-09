@@ -109,6 +109,8 @@ async def stream_webcam(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         return
     except Exception as exc:
+        import traceback
+        traceback.print_exc()
         await websocket.send_json({"type": "stream_error", "message": str(exc)})
         await websocket.close(code=1011)
 

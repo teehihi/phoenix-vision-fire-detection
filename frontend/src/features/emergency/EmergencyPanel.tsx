@@ -1,8 +1,9 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertTriangle, Bell, CheckCircle2, Flame, ShieldCheck, Siren } from 'lucide-react';
+import { AlertTriangle, Bell, CheckCircle2, Flame, ShieldCheck, Siren, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { EmergencyOverlay } from '../../components/effects/CinematicEffects';
-import { getEmergencyStatus } from '../../lib/apiClient';
+import { getEmergencyStatus, acknowledgeEmergency, resolveEmergency } from '../../lib/apiClient';
 import type { EmergencyState, EmergencyStatus } from '../../types/detection';
 import { useEmergencyTone } from '../../hooks/useEmergencyTone';
 
@@ -35,35 +36,72 @@ type EmergencyPanelProps = {
 
 export function EmergencyPanel({ compact = false }: EmergencyPanelProps) {
   const [status, setStatus] = useState<EmergencyStatus | null>(null);
-  const [soundEnabled, setSoundEnabled] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    return localStorage.getItem('soundEnabled') !== 'false';
+  });
   const [error, setError] = useState<string | null>(null);
-
-  useEmergencyTone(status?.state ?? 'monitoring', soundEnabled);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [acknowledgedEvents, setAcknowledgedEvents] = useState<string[]>([]);
 
   useEffect(() => {
-    let isMounted = true;
+    const handleSoundChanged = () => {
+      setSoundEnabled(localStorage.getItem('soundEnabled') !== 'false');
+    };
+    window.addEventListener('sound-enabled-changed', handleSoundChanged);
+    return () => window.removeEventListener('sound-enabled-changed', handleSoundChanged);
+  }, []);
 
-    async function loadStatus() {
-      try {
-        const nextStatus = await getEmergencyStatus();
-        if (isMounted) {
-          setStatus(nextStatus);
-          setError(null);
-        }
-      } catch {
-        if (isMounted) {
-          setError('Không lấy được trạng thái khẩn cấp từ backend.');
-        }
-      }
+  const toggleSound = () => {
+    const newVal = !soundEnabled;
+    setSoundEnabled(newVal);
+    localStorage.setItem('soundEnabled', String(newVal));
+    window.dispatchEvent(new Event('sound-enabled-changed'));
+  };
+
+  async function loadStatus() {
+    try {
+      const nextStatus = await getEmergencyStatus();
+      setStatus(nextStatus);
+      setError(null);
+    } catch {
+      setError('Không lấy được trạng thái khẩn cấp từ backend.');
     }
+  }
 
+  useEffect(() => {
     loadStatus();
     const intervalId = window.setInterval(loadStatus, 3000);
     return () => {
-      isMounted = false;
       window.clearInterval(intervalId);
     };
   }, []);
+
+  async function handleAcknowledge() {
+    if (!status?.activeEventId) return;
+    setActionLoading(true);
+    try {
+      await acknowledgeEmergency(status.activeEventId);
+      setAcknowledgedEvents(prev => [...prev, status.activeEventId!]);
+    } catch {
+      alert('Không thể xác nhận sự cố.');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleResolve() {
+    if (!status?.activeEventId) return;
+    if (!window.confirm('Bạn có chắc chắn sự cố đã được khắc phục hoàn toàn?')) return;
+    setActionLoading(true);
+    try {
+      await resolveEmergency(status.activeEventId);
+      await loadStatus();
+    } catch {
+      alert('Không thể hoàn thành khắc phục sự cố.');
+    } finally {
+      setActionLoading(false);
+    }
+  }
 
   const state = status?.state ?? 'monitoring';
   const style = stateStyles[state];
@@ -94,15 +132,50 @@ export function EmergencyPanel({ compact = false }: EmergencyPanelProps) {
           </div>
         </div>
 
-        <motion.button
-          whileTap={{ scale: 0.96 }}
-          whileHover={{ y: -1 }}
-          className="inline-flex items-center gap-2 rounded-md bg-white/80 px-3 py-2 text-sm font-medium text-slate-900 hover:bg-white"
-          onClick={() => setSoundEnabled((value) => !value)}
-        >
-          <Bell size={16} />
-          {soundEnabled ? 'Tắt âm báo' : 'Bật âm báo'}
-        </motion.button>
+        <div className="flex flex-wrap items-center gap-2">
+          <motion.button
+            whileTap={{ scale: 0.96 }}
+            whileHover={{ y: -1 }}
+            className="inline-flex items-center gap-2 rounded-md bg-white/80 px-3 py-2 text-sm font-medium text-slate-900 hover:bg-white"
+            onClick={toggleSound}
+          >
+            <Bell size={16} />
+            {soundEnabled ? 'Tắt âm báo' : 'Bật âm báo'}
+          </motion.button>
+
+          {state !== 'monitoring' && status?.activeEventId ? (
+            <>
+              {!acknowledgedEvents.includes(status.activeEventId) ? (
+                <motion.button
+                  whileTap={{ scale: 0.96 }}
+                  whileHover={{ y: -1 }}
+                  disabled={actionLoading}
+                  className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                  onClick={handleAcknowledge}
+                >
+                  <CheckCircle2 size={16} />
+                  Xác nhận
+                </motion.button>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-md bg-blue-100 px-2.5 py-2 text-xs font-semibold text-blue-800">
+                  <CheckCircle2 size={14} />
+                  Đã xác nhận
+                </span>
+              )}
+
+              <motion.button
+                whileTap={{ scale: 0.96 }}
+                whileHover={{ y: -1 }}
+                disabled={actionLoading}
+                className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                onClick={handleResolve}
+              >
+                <CheckCircle2 size={16} />
+                Khắc phục xong
+              </motion.button>
+            </>
+          ) : null}
+        </div>
       </div>
 
       {!compact ? (
@@ -110,7 +183,7 @@ export function EmergencyPanel({ compact = false }: EmergencyPanelProps) {
           <Metric label="Risk score" value={`${Math.round(status?.riskScore ?? 0)}/100`} />
           <Metric label="Risk level" value={status?.riskLevel ?? 'LOW'} />
           <Metric label="Escalations" value={String(status?.escalationCount ?? 0)} />
-          <Metric label="Camera" value={status?.cameraId ?? 'webcam-01'} />
+          <Metric label="Camera" value={status?.cameraId ?? 'webcam-0'} />
         </div>
       ) : null}
 
@@ -121,6 +194,7 @@ export function EmergencyPanel({ compact = false }: EmergencyPanelProps) {
       ) : null}
 
       {error ? <p className="mt-3 text-sm font-medium text-red-700">{error}</p> : null}
+
     </motion.section>
   );
 }

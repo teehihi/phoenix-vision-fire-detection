@@ -1,6 +1,6 @@
-import { AlertTriangle, Camera, Clock, Flame, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Camera, Clock, Flame, ShieldAlert, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { getIncidentTimeline, type IncidentTimelineFilters } from '../../lib/apiClient';
+import { getIncidentTimeline, type IncidentTimelineFilters, deleteTimelineEvent, clearAllTimelineEvents } from '../../lib/apiClient';
 import type { IncidentTimelineEvent } from '../../types/detection';
 
 const riskClasses = {
@@ -15,32 +15,47 @@ export function IncidentTimeline() {
   const [filters, setFilters] = useState<IncidentTimelineFilters>({});
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadEvents() {
-      try {
-        const data = await getIncidentTimeline(filters);
-        if (isMounted) {
-          setEvents(data);
-          setError(null);
-        }
-      } catch {
-        if (isMounted) {
-          setError('Không tải được incident timeline từ backend.');
-        }
-      }
+  async function loadEvents() {
+    try {
+      const data = await getIncidentTimeline(filters);
+      setEvents(data);
+      setError(null);
+    } catch {
+      setError('Không tải được incident timeline từ backend.');
     }
+  }
 
+  useEffect(() => {
     loadEvents();
     const intervalId = window.setInterval(loadEvents, 4000);
     return () => {
-      isMounted = false;
       window.clearInterval(intervalId);
     };
   }, [filters]);
 
   const hasFilters = useMemo(() => Object.values(filters).some(Boolean), [filters]);
+
+  async function handleDeleteEvent(eventId: string) {
+    if (window.confirm('Bạn có chắc chắn muốn xóa sự kiện lịch sử này không?')) {
+      try {
+        await deleteTimelineEvent(eventId);
+        loadEvents();
+      } catch {
+        alert('Không thể xóa sự kiện.');
+      }
+    }
+  }
+
+  async function handleClearAllEvents() {
+    if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử sự cố không?')) {
+      try {
+        await clearAllTimelineEvents();
+        loadEvents();
+      } catch {
+        alert('Không thể xóa toàn bộ lịch sử.');
+      }
+    }
+  }
 
   return (
     <section className="space-y-4">
@@ -95,24 +110,40 @@ export function IncidentTimeline() {
             <h2 className="text-lg font-semibold text-slate-950">Incident Timeline</h2>
             <p className="text-sm text-slate-500">Cập nhật realtime mỗi 4 giây, có snapshot và metadata vận hành.</p>
           </div>
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{events.length} events</span>
+          <div className="flex items-center gap-3">
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{events.length} events</span>
+            {events.length > 0 ? (
+              <button
+                type="button"
+                onClick={handleClearAllEvents}
+                className="flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition active:scale-95"
+              >
+                <Trash2 size={12} />
+                Xóa hết
+              </button>
+            ) : null}
+          </div>
         </div>
 
         <div className="space-y-4">
-          {events.length ? events.map((event) => <TimelineItem key={event.id} event={event} />) : <EmptyTimeline />}
+          {events.length ? events.map((event) => (
+            <TimelineItem key={event.id} event={event} onDelete={() => handleDeleteEvent(event.id)} />
+          )) : (
+            <EmptyTimeline />
+          )}
         </div>
       </div>
     </section>
   );
 }
 
-function TimelineItem({ event }: { event: IncidentTimelineEvent }) {
+function TimelineItem({ event, onDelete }: { event: IncidentTimelineEvent; onDelete: () => void }) {
   const Icon = event.humanAtRisk ? ShieldAlert : event.eventType === 'snapshot' ? Camera : event.riskLevel === 'LOW' ? Clock : Flame;
 
   return (
-    <article className="relative grid gap-4 rounded-lg border border-slate-200 p-4 transition hover:border-slate-300 hover:bg-slate-50 md:grid-cols-[1fr_180px]">
+    <article className="relative grid gap-4 rounded-lg border border-slate-200 p-4 transition hover:border-slate-300 hover:bg-slate-50 md:grid-cols-[1fr_180px_80px]">
       <div className="flex gap-3">
-        <div className={`mt-1 flex h-10 w-10 items-center justify-center rounded-full ring-1 ${riskClasses[event.riskLevel]}`}>
+        <div className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full ring-1 ${riskClasses[event.riskLevel]}`}>
           <Icon size={18} />
         </div>
         <div className="min-w-0">
@@ -139,6 +170,18 @@ function TimelineItem({ event }: { event: IncidentTimelineEvent }) {
           <AlertTriangle size={20} />
         </div>
       )}
+
+      <div className="flex items-center justify-end">
+        <button
+          type="button"
+          onClick={onDelete}
+          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 hover:border-rose-200 active:scale-95"
+          title="Xóa sự kiện này"
+        >
+          <Trash2 size={13} />
+          Xóa
+        </button>
+      </div>
     </article>
   );
 }

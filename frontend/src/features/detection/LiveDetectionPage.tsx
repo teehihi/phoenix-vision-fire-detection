@@ -411,16 +411,34 @@ function CameraGridCard({
   onEdit: () => void;
 }) {
   const imageSrc = cameraItem.frame ? `data:image/jpeg;base64,${cameraItem.frame.frame}` : null;
+  const isDanger = cameraItem.riskLevel === 'HIGH' || cameraItem.riskLevel === 'CRITICAL';
 
   return (
     <motion.article
       layout
       onClick={onSelect}
       className={`group overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-        active ? 'border-orange-300 ring-4 ring-orange-100' : 'border-slate-200'
+        cameraItem.riskLevel === 'CRITICAL'
+          ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.25)] ring-2 ring-red-500/20'
+          : cameraItem.riskLevel === 'HIGH'
+          ? 'border-orange-500 shadow-[0_0_12px_rgba(249,115,22,0.2)] ring-2 ring-orange-500/15'
+          : active
+          ? 'border-orange-300 ring-4 ring-orange-100'
+          : 'border-slate-200'
       }`}
     >
       <div className="relative aspect-video bg-slate-950">
+        {isDanger ? (
+          <span className={`absolute left-3 top-3 z-10 flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-lg backdrop-blur ${
+            cameraItem.riskLevel === 'CRITICAL'
+              ? 'border-red-500 bg-red-600/90'
+              : 'border-orange-400 bg-orange-500/90'
+          }`}>
+            <AlertTriangle size={12} className="animate-bounce" />
+            {cameraItem.riskLevel === 'CRITICAL' ? 'Critical Danger' : 'High Risk'}
+          </span>
+        ) : null}
+
         {imageSrc ? (
           <img src={imageSrc} alt={`${cameraItem.name} realtime feed`} className="h-full w-full object-cover" />
         ) : (
@@ -472,7 +490,14 @@ function CameraGridCard({
 
       <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-slate-900">{cameraItem.name}</p>
+          <p className="truncate text-sm font-semibold text-slate-900 flex items-center gap-1.5">
+            {cameraItem.riskLevel === 'CRITICAL' ? (
+              <span className="h-2 w-2 rounded-full bg-red-600 animate-ping shrink-0" />
+            ) : cameraItem.riskLevel === 'HIGH' ? (
+              <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse shrink-0" />
+            ) : null}
+            {cameraItem.name}
+          </p>
           <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
             <MapPin size={12} />
             <span className="truncate">{cameraItem.location}</span>
@@ -483,7 +508,16 @@ function CameraGridCard({
       </div>
 
       <div className="grid grid-cols-4 divide-x divide-slate-100 border-t border-slate-100">
-        <CameraMetric label="Risk" value={cameraItem.riskScore.toFixed(0)} />
+        <div className={`p-3 text-center transition-colors ${
+          cameraItem.riskLevel === 'CRITICAL'
+            ? 'bg-red-50/55 text-red-700 font-bold'
+            : cameraItem.riskLevel === 'HIGH'
+            ? 'bg-orange-50/55 text-orange-700 font-bold'
+            : ''
+        }`}>
+          <p className="text-xs text-slate-400">Risk</p>
+          <p className="mt-1 text-sm font-semibold">{cameraItem.riskScore.toFixed(0)}</p>
+        </div>
         <CameraMetric label="FPS" value={cameraItem.fps ? cameraItem.fps.toFixed(1) : '--'} />
         <CameraMetric label="Fire" value={String(cameraItem.fire)} />
         <CameraMetric label="Smoke" value={String(cameraItem.smoke)} />

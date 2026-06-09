@@ -1,7 +1,12 @@
-import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile, type User } from 'firebase/auth';
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { auth, db } from '../../lib/firebase';
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged,
+  updateProfile
+} from 'firebase/auth';
+import { auth } from '../../lib/firebase';
 
 export type RegisterInput = {
   fullName: string;
@@ -10,8 +15,14 @@ export type RegisterInput = {
   password: string;
 };
 
+export type MockUser = {
+  uid: string;
+  email: string;
+  displayName: string;
+};
+
 type AuthContextValue = {
-  user: User | null;
+  user: MockUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
@@ -21,14 +32,24 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<MockUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    return onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        setUser({
+          uid: firebaseUser.uid,
+          email: firebaseUser.email || '',
+          displayName: firebaseUser.displayName || '',
+        });
+      } else {
+        setUser(null);
+      }
       setLoading(false);
     });
+
+    return () => unsubscribe();
   }, []);
 
   const value = useMemo<AuthContextValue>(
@@ -39,17 +60,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await signInWithEmailAndPassword(auth, email, password);
       },
       register: async (input) => {
-        const credential = await createUserWithEmailAndPassword(auth, input.email, input.password);
-        await updateProfile(credential.user, { displayName: input.fullName });
-        await setDoc(doc(db, 'users', credential.user.uid), {
-          fullName: input.fullName,
-          email: input.email,
-          phone: input.phone,
-          emailVerified: true,
-          verifiedBy: 'otp',
-          role: 'user',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
+        const userCredential = await createUserWithEmailAndPassword(auth, input.email, input.password);
+        await updateProfile(userCredential.user, {
+          displayName: input.fullName,
+        });
+        // Force local state update with displayName
+        setUser({
+          uid: userCredential.user.uid,
+          email: userCredential.user.email || '',
+          displayName: input.fullName,
         });
       },
       logout: async () => {

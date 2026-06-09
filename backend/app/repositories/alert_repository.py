@@ -14,5 +14,13 @@ class AlertRepository:
         self._alerts.append(alert)
         return alert
 
+    def delete(self, alert_id: str) -> bool:
+        initial_len = len(self._alerts)
+        self._alerts = [alert for alert in self._alerts if alert.id != alert_id]
+        return len(self._alerts) < initial_len
+
+    def clear_all(self) -> None:
+        self._alerts.clear()
+
 
 alert_repository = AlertRepository()

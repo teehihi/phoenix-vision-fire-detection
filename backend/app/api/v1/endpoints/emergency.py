@@ -9,7 +9,7 @@ service = EmergencyService(emergency_repository)
 
 
 @router.get("/current", response_model=EmergencyStatusResponse)
-async def get_current_status(camera_id: str = "webcam-01") -> EmergencyStatusResponse:
+async def get_current_status(camera_id: str = "webcam-0") -> EmergencyStatusResponse:
     return service.get_status(camera_id)
 
 

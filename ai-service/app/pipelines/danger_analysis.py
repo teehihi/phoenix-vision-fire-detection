@@ -74,7 +74,7 @@ class DangerAnalyzer:
             humans_at_risk=humans_at_risk,
             frame_consistency=frame_consistency,
         )
-        risk_score = self._risk_score(risk_factors)
+        risk_score = self._risk_score(risk_factors, fire_detected, smoke_detected)
 
         risk_level = self._risk_level(risk_score, fire_detected, smoke_detected, human_at_risk)
         return DangerAnalysisResult(
@@ -188,15 +188,29 @@ class DangerAnalyzer:
             consistency_score=_clamp01(frame_consistency) * 100,
         )
 
-    def _risk_score(self, factors: RiskFactors) -> float:
-        score = (
-            factors.fire_area_score * self.config.fire_area_weight
-            + factors.smoke_density_score * self.config.smoke_density_weight
-            + factors.duration_score * self.config.duration_weight
-            + factors.human_nearby_score * self.config.human_nearby_weight
-            + factors.proximity_score * self.config.proximity_weight
-            + factors.consistency_score * self.config.consistency_weight
-        )
+    def _risk_score(self, factors: RiskFactors, fire_detected: bool, smoke_detected: bool) -> float:
+        has_humans = factors.human_nearby_score > 0 or factors.proximity_score > 0
+        
+        active_weights = 0.0
+        raw_score = 0.0
+        
+        if fire_detected:
+            active_weights += self.config.fire_area_weight
+            raw_score += factors.fire_area_score * self.config.fire_area_weight
+            
+        if smoke_detected:
+            active_weights += self.config.smoke_density_weight
+            raw_score += factors.smoke_density_score * self.config.smoke_density_weight
+            
+        if has_humans:
+            active_weights += self.config.human_nearby_weight + self.config.proximity_weight
+            raw_score += factors.human_nearby_score * self.config.human_nearby_weight + factors.proximity_score * self.config.proximity_weight
+            
+        if fire_detected or smoke_detected or has_humans:
+            active_weights += self.config.duration_weight + self.config.consistency_weight
+            raw_score += factors.duration_score * self.config.duration_weight + factors.consistency_score * self.config.consistency_weight
+            
+        score = (raw_score / active_weights) if active_weights > 0 else 0.0
         return round(_clamp(score, 0.0, 100.0), 2)
 
     def _risk_level(

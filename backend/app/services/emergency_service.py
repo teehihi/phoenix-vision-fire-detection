@@ -21,13 +21,32 @@ class EmergencyService:
     def list_events(self) -> list[EmergencyEvent]:
         return self.repository.list_events()
 
-    def get_status(self, camera_id: str = "webcam-01") -> EmergencyStatus:
+    def get_status(self, camera_id: str = "webcam-0") -> EmergencyStatus:
         return self.repository.get_status(camera_id)
 
     def ingest_event(self, payload: EmergencyEventCreate) -> EmergencyStatus:
         current = self.repository.get_status(payload.camera_id)
         next_state = self._state_for(payload.risk_score, payload.risk_level, payload.human_at_risk)
         now = datetime.utcnow()
+
+        priority = {
+            EmergencyState.monitoring: 0,
+            EmergencyState.warning: 1,
+            EmergencyState.emergency: 2,
+            EmergencyState.critical: 3,
+        }
+
+        # Do not allow automatic downgrade/de-escalation during an active emergency event.
+        # Downward transitions must be performed by operator actions (Resolve).
+        if current.state != EmergencyState.monitoring and priority[next_state] < priority[current.state]:
+            updated = current.model_copy(
+                update={
+                    "risk_score": max(current.risk_score, payload.risk_score),
+                    "human_at_risk": current.human_at_risk or payload.human_at_risk,
+                    "updated_at": now,
+                }
+            )
+            return self.repository.save_status(updated)
 
         updated = current.model_copy(
             update={
@@ -57,6 +76,28 @@ class EmergencyService:
         self.repository.add_event(event)
         self.timeline_service.create_from_emergency(event)
 
+        if next_state != EmergencyState.monitoring:
+            from app.models.alert import Alert
+            from app.models.detection import DetectionSeverity
+            from app.repositories.alert_repository import alert_repository
+
+            severity = DetectionSeverity.low
+            if payload.risk_level.upper() == "CRITICAL":
+                severity = DetectionSeverity.critical
+            elif payload.risk_level.upper() == "HIGH":
+                severity = DetectionSeverity.high
+            elif payload.risk_level.upper() == "MEDIUM":
+                severity = DetectionSeverity.medium
+
+            alert_repository.add(
+                Alert(
+                    detection_id=event.id,
+                    title=f"Cảnh báo nguy cơ: {payload.risk_level.upper()}",
+                    message=event.message,
+                    severity=severity,
+                )
+            )
+
         updated = updated.model_copy(
             update={
                 "state": next_state,
@@ -72,6 +113,29 @@ class EmergencyService:
         if event is None:
             return None
         event.acknowledged_at = datetime.utcnow()
+
+        # Log operator action to timeline
+        from app.models.incident_timeline import IncidentEventType, IncidentRiskLevel
+        from app.schemas.incident_timeline import IncidentTimelineEventCreate
+
+        self.timeline_service.create_event(
+            IncidentTimelineEventCreate(
+                camera_id=event.camera_id,
+                event_type=IncidentEventType.operator_action,
+                title="Xác nhận sự cố (Acknowledge)",
+                description=f"Người vận hành đã xác nhận sự cố khẩn cấp. (Mô tả: {event.message})",
+                risk_level=IncidentRiskLevel(event.risk_level.upper()),
+                risk_score=event.risk_score,
+                human_at_risk=event.human_at_risk,
+                humans_nearby_count=1 if event.human_at_risk else 0,
+                snapshot_url=event.snapshot_url,
+                metadata={
+                    "emergencyEventId": event.id,
+                    "action": "acknowledge",
+                    "operator": "system_operator"
+                }
+            )
+        )
         return event
 
     def resolve(self, event_id: str) -> EmergencyEvent | None:
@@ -91,6 +155,29 @@ class EmergencyService:
                     "human_at_risk": False,
                     "last_transition_at": event.resolved_at,
                     "updated_at": event.resolved_at,
+                }
+            )
+        )
+
+        # Log operator action to timeline
+        from app.models.incident_timeline import IncidentEventType, IncidentRiskLevel
+        from app.schemas.incident_timeline import IncidentTimelineEventCreate
+
+        self.timeline_service.create_event(
+            IncidentTimelineEventCreate(
+                camera_id=event.camera_id,
+                event_type=IncidentEventType.operator_action,
+                title="Khắc phục sự cố (Resolve)",
+                description="Người vận hành đã giải quyết/khắc phục sự cố khẩn cấp. Hệ thống trở lại trạng thái giám sát bình thường.",
+                risk_level=IncidentRiskLevel.low,
+                risk_score=0.0,
+                human_at_risk=False,
+                humans_nearby_count=0,
+                snapshot_url=event.snapshot_url,
+                metadata={
+                    "emergencyEventId": event.id,
+                    "action": "resolve",
+                    "operator": "system_operator"
                 }
             )
         )

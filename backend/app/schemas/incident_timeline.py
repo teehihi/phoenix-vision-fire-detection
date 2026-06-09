@@ -6,7 +6,7 @@ from app.models.incident_timeline import IncidentEventType, IncidentRiskLevel
 
 
 class IncidentTimelineEventCreate(BaseModel):
-    camera_id: str = Field(default="webcam-01", validation_alias="cameraId")
+    camera_id: str = Field(default="webcam-0", validation_alias="cameraId")
     event_type: IncidentEventType = Field(validation_alias="eventType")
     title: str
     description: str

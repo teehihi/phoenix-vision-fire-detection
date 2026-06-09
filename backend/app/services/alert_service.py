@@ -15,6 +15,11 @@ class AlertService:
             detection_id=detection.id,
             title=f"{detection.label.title()} detected",
             message=f"{detection.label.title()} detected on {detection.camera_id} with {detection.confidence:.0%} confidence.",
-            severity=detection.severity,
         )
         return self.repository.add(alert)
+
+    def delete_alert(self, alert_id: str) -> bool:
+        return self.repository.delete(alert_id)
+
+    def clear_all_alerts(self) -> None:
+        self.repository.clear_all()
