@@ -250,7 +250,7 @@ function riskToEmergencyState(riskLevel: RealtimeRiskPayload['riskLevel']): Emer
   return 'monitoring';
 }
 
-export function shouldNotifyRiskTransition(
+function shouldNotifyRiskTransition(
   previousRiskLevel: RealtimeRiskPayload['riskLevel'],
   nextRiskLevel: RealtimeRiskPayload['riskLevel']
 ) {
