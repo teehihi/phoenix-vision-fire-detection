@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.core.config import settings
-from app.models.yolo_detector import YoloDetector
+from app.models.yolo_detector import get_yolo_detector
 from app.pipelines.danger_analysis import DangerAnalysisConfig, DangerAnalyzer
 from app.pipelines.frame_pipeline import draw_danger_analysis, draw_detections
 from app.pipelines.temporal_smoothing import StableDetectionConfig, TemporalDetectionSmoother
@@ -34,8 +34,8 @@ async def stream_webcam(websocket: WebSocket) -> None:
     person_every = max(int(query.get("person_every", 4)), 1)
     max_read_failures = max(int(query.get("read_failures", 30)), 1)
 
-    fire_detector = YoloDetector(model_path)
-    person_detector = YoloDetector(person_model_path) if person_model_path else None
+    fire_detector = get_yolo_detector(model_path)
+    person_detector = get_yolo_detector(person_model_path) if person_model_path else None
     stream = WebcamStream(
         camera_index=camera_index,
         source=source_url,
