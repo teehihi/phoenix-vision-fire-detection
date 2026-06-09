@@ -9,6 +9,7 @@ import {
   EyeOff,
   Flame,
   LayoutGrid,
+  ListChecks,
   MapPin,
   Maximize2,
   Plus,
@@ -17,11 +18,12 @@ import {
   SlidersHorizontal,
   Trash2,
   Video,
+  VideoOff,
   Wifi,
   WifiOff,
   X
 } from 'lucide-react';
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { buildCameraStreamUrl, useRealtimeStream } from '../../hooks/useRealtimeStream';
 import { getIncidentTimeline } from '../../lib/apiClient';
@@ -32,6 +34,11 @@ type CameraStatus = 'online' | 'warning' | 'offline';
 type RiskLevel = RealtimeRiskPayload['riskLevel'];
 type GridMode = 'auto' | 'two' | 'three';
 type CameraPanelState = { mode: 'create' } | { mode: 'edit'; camera: CameraItem };
+type CameraRuntime = {
+  frame: ProcessedFrameMessage | null;
+  state: string;
+  error: string | null;
+};
 
 type CameraItem = {
   id: string;
@@ -79,34 +86,47 @@ const cameraRuntimeDefaults: Record<string, Partial<CameraItem>> = {
 };
 
 export function LiveDetectionPage() {
-  const { cameras: registryCameras, loading: camerasLoading, error: cameraRegistryError, createCamera, updateCamera, deleteCamera } = useCameraRegistry();
+  const {
+    cameras: registryCameras,
+    loading: camerasLoading,
+    error: cameraRegistryError,
+    createCamera,
+    updateCamera,
+    deleteCamera,
+    deleteCameras,
+    setCamerasEnabled
+  } = useCameraRegistry();
   const [selectedCameraId, setSelectedCameraId] = useState('webcam-0');
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [fullscreenCameraId, setFullscreenCameraId] = useState<string | null>(null);
   const [cameraPanel, setCameraPanel] = useState<CameraPanelState | null>(null);
+  const [managerOpen, setManagerOpen] = useState(false);
+  const [cameraRuntimes, setCameraRuntimes] = useState<Record<string, CameraRuntime>>({});
   const [cameraMutationError, setCameraMutationError] = useState<string | null>(null);
   const [gridMode, setGridMode] = useState<GridMode>('auto');
   const [gridMenuOpen, setGridMenuOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [showFrameAiInfo, setShowFrameAiInfo] = useState(true);
   const primaryStream = useRealtimeStream();
-  const selectedRegistryCamera = useMemo(() => registryCameras.find((camera) => camera.id === selectedCameraId) ?? null, [registryCameras, selectedCameraId]);
-  const selectedRegistryStreamUrl = useMemo(() => (selectedRegistryCamera ? buildCameraStreamUrl(selectedRegistryCamera) : ''), [selectedRegistryCamera]);
-  const selectedRegistryStreamEnabled = Boolean(selectedRegistryCamera?.enabled && selectedRegistryCamera.streamUrl.trim());
-  const selectedRegistryStream = useRealtimeStream(selectedRegistryStreamUrl, selectedRegistryStreamEnabled);
+  const updateCameraRuntime = useCallback((cameraId: string, runtime: CameraRuntime) => {
+    setCameraRuntimes((current) => {
+      const previous = current[cameraId];
+      if (previous?.frame === runtime.frame && previous?.state === runtime.state && previous?.error === runtime.error) {
+        return current;
+      }
+      return { ...current, [cameraId]: runtime };
+    });
+  }, []);
 
   const cameras = useMemo(() => {
     return [
       createPrimaryCamera(primaryStream.frame, primaryStream.state),
-      ...registryCameras.map((camera) =>
-        createRegistryCamera(
-          camera,
-          camera.id === selectedCameraId ? selectedRegistryStream.frame : null,
-          camera.id === selectedCameraId ? selectedRegistryStream.state : 'idle'
-        )
-      )
+      ...registryCameras.map((camera) => {
+        const runtime = cameraRuntimes[camera.id];
+        return createRegistryCamera(camera, runtime?.frame ?? null, runtime?.state ?? 'idle');
+      })
     ];
-  }, [primaryStream.frame, primaryStream.state, registryCameras, selectedCameraId, selectedRegistryStream.frame, selectedRegistryStream.state]);
+  }, [primaryStream.frame, primaryStream.state, registryCameras, cameraRuntimes]);
 
   const filteredCameras = cameras.filter((cameraItem) => {
     const target = `${cameraItem.name} ${cameraItem.location} ${cameraItem.zone}`.toLowerCase();
@@ -115,8 +135,9 @@ export function LiveDetectionPage() {
 
   const selectedCamera = cameras.find((cameraItem) => cameraItem.id === selectedCameraId) ?? cameras[0];
   const fullscreenCamera = cameras.find((cameraItem) => cameraItem.id === fullscreenCameraId) ?? null;
-  const selectedStreamState = selectedCamera.isPrimary ? primaryStream.state : selectedRegistryStream.state;
-  const selectedStreamError = selectedCamera.isPrimary ? primaryStream.error : selectedRegistryStream.error;
+  const selectedRuntime = cameraRuntimes[selectedCamera.id];
+  const selectedStreamState = selectedCamera.isPrimary ? primaryStream.state : selectedRuntime?.state ?? 'idle';
+  const selectedStreamError = selectedCamera.isPrimary ? primaryStream.error : selectedRuntime?.error ?? null;
   const onlineCount = cameras.filter((cameraItem) => cameraItem.status === 'online').length;
   const warningCount = cameras.filter((cameraItem) => cameraItem.status === 'warning').length;
   const offlineCount = cameras.filter((cameraItem) => cameraItem.status === 'offline').length;
@@ -125,6 +146,9 @@ export function LiveDetectionPage() {
 
   return (
     <div className="space-y-6">
+      {registryCameras.map((camera) => (
+        <CameraStreamConnector key={camera.id} camera={camera} onUpdate={updateCameraRuntime} />
+      ))}
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div>
@@ -162,6 +186,13 @@ export function LiveDetectionPage() {
                 ) : null}
               </AnimatePresence>
             </div>
+            <button
+              onClick={() => setManagerOpen(true)}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+            >
+              <ListChecks size={16} />
+              Quản lý camera
+            </button>
             <button
               onClick={() => {
                 setCameraMutationError(null);
@@ -269,6 +300,32 @@ export function LiveDetectionPage() {
             onSubmit={handleSaveCamera}
           />
         ) : null}
+        {managerOpen ? (
+          <CameraManagerModal
+            cameras={registryCameras}
+            error={cameraMutationError}
+            onClose={() => setManagerOpen(false)}
+            onAdd={() => {
+              setManagerOpen(false);
+              setCameraMutationError(null);
+              setCameraPanel({ mode: 'create' });
+            }}
+            onEdit={(camera) => {
+              const cameraItem = cameras.find((item) => item.id === camera.id);
+              if (!cameraItem) return;
+              setManagerOpen(false);
+              setCameraMutationError(null);
+              setCameraPanel({ mode: 'edit', camera: cameraItem });
+            }}
+            onSetEnabled={setCamerasEnabled}
+            onDelete={async (cameraIds) => {
+              await deleteCameras(cameraIds);
+              if (cameraIds.includes(selectedCameraId)) {
+                setSelectedCameraId('webcam-0');
+              }
+            }}
+          />
+        ) : null}
       </AnimatePresence>
     </div>
   );
@@ -306,6 +363,28 @@ export function LiveDetectionPage() {
       setCameraMutationError(deleteError instanceof Error ? deleteError.message : 'Không thể xóa camera.');
     }
   }
+}
+
+function CameraStreamConnector({
+  camera,
+  onUpdate
+}: {
+  camera: CameraRegistryItem;
+  onUpdate: (cameraId: string, runtime: CameraRuntime) => void;
+}) {
+  const streamUrl = useMemo(() => buildCameraStreamUrl(camera), [camera]);
+  const enabled = camera.enabled && Boolean(camera.streamUrl.trim());
+  const stream = useRealtimeStream(streamUrl, enabled);
+
+  useEffect(() => {
+    onUpdate(camera.id, {
+      frame: stream.frame,
+      state: stream.state,
+      error: stream.error
+    });
+  }, [camera.id, onUpdate, stream.error, stream.frame, stream.state]);
+
+  return null;
 }
 
 function createPrimaryCamera(frame: ProcessedFrameMessage | null, state: string): CameraItem {
@@ -528,12 +607,14 @@ function CameraGridCard({
 
 function CameraPlaceholder({ cameraItem }: { cameraItem: CameraItem }) {
   const offline = cameraItem.status === 'offline';
+  const disabled = cameraItem.enabled === false;
+  const title = disabled ? 'Camera đang tắt' : offline ? 'Camera mất kết nối' : 'Camera đang chờ cấu hình stream';
 
   return (
     <div className={`grid h-full place-items-center ${offline ? 'bg-slate-900' : 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950'}`}>
       <div className="text-center text-white">
-        {offline ? <WifiOff className="mx-auto mb-3 text-slate-500" size={36} /> : <Video className="mx-auto mb-3 text-slate-400" size={36} />}
-        <p className="text-sm font-semibold">{offline ? 'Camera mất kết nối' : 'Camera đang chờ cấu hình stream'}</p>
+        {disabled ? <VideoOff className="mx-auto mb-3 text-slate-500" size={36} /> : offline ? <WifiOff className="mx-auto mb-3 text-slate-500" size={36} /> : <Video className="mx-auto mb-3 text-slate-400" size={36} />}
+        <p className="text-sm font-semibold">{title}</p>
         <p className="mt-1 text-xs text-slate-400">{cameraItem.zone}</p>
       </div>
     </div>
@@ -619,7 +700,7 @@ function CameraInspector({
           <p className="mt-2 text-xs leading-5 text-slate-500">{streamError ?? `WebSocket hiện tại: ${streamState}. Camera local là nguồn stream thật từ AI service.`}</p>
         ) : cameraItem.streamUrl ? (
           <p className="mt-2 text-xs leading-5 text-slate-500">
-            {streamError ?? `Stream đã cấu hình. Khi chọn camera này, AI service mở nguồn ${cameraItem.source.toUpperCase()} và trả frame theo thời gian thực.`}
+            {streamError ?? `Stream ${cameraItem.source.toUpperCase()} tự chạy khi camera được bật, không cần chọn card.`}
           </p>
         ) : (
           <p className="mt-2 text-xs leading-5 text-slate-500">Chưa có URL stream. Bấm Cấu hình rồi nhập RTSP/IP URL thật để AI service bắt đầu nhận diện.</p>
@@ -819,6 +900,156 @@ function RecentIncident({ incident }: { incident: IncidentTimelineEvent }) {
       </div>
       <p className="mt-2 text-xs text-slate-400">{new Date(incident.createdAt).toLocaleString()}</p>
     </article>
+  );
+}
+
+function CameraManagerModal({
+  cameras,
+  error,
+  onClose,
+  onAdd,
+  onEdit,
+  onSetEnabled,
+  onDelete
+}: {
+  cameras: CameraRegistryItem[];
+  error: string | null;
+  onClose: () => void;
+  onAdd: () => void;
+  onEdit: (camera: CameraRegistryItem) => void;
+  onSetEnabled: (cameraIds: string[], enabled: boolean) => Promise<void>;
+  onDelete: (cameraIds: string[]) => Promise<void>;
+}) {
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const allSelected = cameras.length > 0 && selectedIds.length === cameras.length;
+
+  function toggleSelection(cameraId: string) {
+    setSelectedIds((current) =>
+      current.includes(cameraId) ? current.filter((id) => id !== cameraId) : [...current, cameraId]
+    );
+  }
+
+  async function runMutation(action: () => Promise<void>) {
+    setBusy(true);
+    setMutationError(null);
+    try {
+      await action();
+    } catch (actionError) {
+      setMutationError(actionError instanceof Error ? actionError.message : 'Không thể cập nhật camera.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteSelected(cameraIds: string[]) {
+    if (!cameraIds.length || !window.confirm(`Xóa ${cameraIds.length} camera đã chọn?`)) {
+      return;
+    }
+    await runMutation(async () => {
+      await onDelete(cameraIds);
+      setSelectedIds((current) => current.filter((id) => !cameraIds.includes(id)));
+    });
+  }
+
+  return createPortal(
+    <motion.div className="fixed inset-0 z-[110] grid place-items-center bg-slate-950/60 p-4 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <motion.section
+        className="flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
+        initial={{ scale: 0.96, y: 18 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.96, y: 18 }}
+      >
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6 py-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-600">Camera registry</p>
+            <h2 className="mt-1 text-xl font-semibold text-slate-950">Quản lý nhiều camera</h2>
+            <p className="mt-1 text-sm text-slate-500">Bật/tắt, chỉnh sửa hoặc xóa camera đã cấu hình.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={onAdd} className="inline-flex h-10 items-center gap-2 rounded-xl bg-orange-600 px-4 text-sm font-semibold text-white hover:bg-orange-700">
+              <Plus size={16} />
+              Thêm camera
+            </button>
+            <button onClick={onClose} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50" aria-label="Đóng quản lý camera">
+              <X size={18} />
+            </button>
+          </div>
+        </header>
+
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-slate-50 px-6 py-3">
+          <label className="mr-auto inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={() => setSelectedIds(allSelected ? [] : cameras.map((camera) => camera.id))}
+              className="h-4 w-4 rounded border-slate-300 text-orange-600"
+            />
+            Chọn tất cả ({selectedIds.length}/{cameras.length})
+          </label>
+          <button disabled={!selectedIds.length || busy} onClick={() => runMutation(() => onSetEnabled(selectedIds, true))} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 disabled:opacity-40">
+            Bật đã chọn
+          </button>
+          <button disabled={!selectedIds.length || busy} onClick={() => runMutation(() => onSetEnabled(selectedIds, false))} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-40">
+            Tắt đã chọn
+          </button>
+          <button disabled={!selectedIds.length || busy} onClick={() => deleteSelected(selectedIds)} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-40">
+            Xóa đã chọn
+          </button>
+        </div>
+
+        {(mutationError || error) ? <p className="mx-6 mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{mutationError ?? error}</p> : null}
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-6">
+          {cameras.length ? (
+            <div className="space-y-3">
+              {cameras.map((camera) => (
+                <article key={camera.id} className="grid gap-3 rounded-2xl border border-slate-200 p-4 md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(camera.id)}
+                    onChange={() => toggleSelection(camera.id)}
+                    className="h-4 w-4 rounded border-slate-300 text-orange-600"
+                  />
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate font-semibold text-slate-900">{camera.name}</p>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${camera.enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                        {camera.enabled ? 'Đang bật' : 'Đang tắt'}
+                      </span>
+                      {!camera.streamUrl.trim() ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">Thiếu URL</span> : null}
+                    </div>
+                    <p className="mt-1 truncate text-sm text-slate-500">{camera.location} · {camera.zone} · {camera.source.toUpperCase()}</p>
+                    <p className="mt-1 truncate text-xs text-slate-400">{camera.streamUrl || 'Chưa cấu hình stream URL'}</p>
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <button disabled={busy} onClick={() => runMutation(() => onSetEnabled([camera.id], !camera.enabled))} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40">
+                      {camera.enabled ? 'Tắt' : 'Bật'}
+                    </button>
+                    <button disabled={busy} onClick={() => onEdit(camera)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40">
+                      Sửa
+                    </button>
+                    <button disabled={busy} onClick={() => deleteSelected([camera.id])} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-40">
+                      Xóa
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-slate-300 text-center">
+              <div>
+                <VideoOff className="mx-auto text-slate-400" size={32} />
+                <p className="mt-3 font-semibold text-slate-800">Chưa có camera tùy chỉnh</p>
+                <button onClick={onAdd} className="mt-3 text-sm font-semibold text-orange-600">Thêm camera đầu tiên</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </motion.section>
+    </motion.div>,
+    document.body
   );
 }
 

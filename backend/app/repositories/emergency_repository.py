@@ -1,5 +1,7 @@
-from app.db.firestore import get_user_collection, with_expiration
-from app.models.emergency import EmergencyEvent, EmergencyStatus
+from datetime import datetime
+
+from app.db.firestore import delete_collection, get_user_collection, with_expiration
+from app.models.emergency import EmergencyEvent, EmergencyState, EmergencyStatus
 
 
 class EmergencyRepository:
@@ -38,6 +40,47 @@ class EmergencyRepository:
     def find_event(self, user_id: str, event_id: str) -> EmergencyEvent | None:
         snapshot = get_user_collection(user_id, self.event_collection_name).document(event_id).get()
         return EmergencyEvent.model_validate(snapshot.to_dict()) if snapshot.exists else None
+
+    def delete_event(self, user_id: str, event_id: str) -> bool:
+        reference = get_user_collection(user_id, self.event_collection_name).document(event_id)
+        if not reference.get().exists:
+            return False
+        reference.delete()
+        return True
+
+    def clear_events(self, user_id: str) -> None:
+        delete_collection(get_user_collection(user_id, self.event_collection_name))
+
+    def list_statuses(self, user_id: str) -> list[EmergencyStatus]:
+        return [
+            EmergencyStatus.model_validate(document.to_dict())
+            for document in get_user_collection(user_id, self.status_collection_name).stream()
+        ]
+
+    def reset_status_for_event(self, user_id: str, event_id: str) -> None:
+        for status in self.list_statuses(user_id):
+            if status.active_event_id == event_id:
+                self.save_status(user_id, self._reset_status(status))
+
+    def reset_all_statuses(self, user_id: str) -> None:
+        for status in self.list_statuses(user_id):
+            self.save_status(user_id, self._reset_status(status))
+
+    @staticmethod
+    def _reset_status(status: EmergencyStatus) -> EmergencyStatus:
+        now = datetime.utcnow()
+        return status.model_copy(
+            update={
+                "state": EmergencyState.monitoring,
+                "risk_level": "LOW",
+                "risk_score": 0.0,
+                "human_at_risk": False,
+                "active_event_id": None,
+                "snapshot_url": None,
+                "last_transition_at": now,
+                "updated_at": now,
+            }
+        )
 
 
 emergency_repository = EmergencyRepository()

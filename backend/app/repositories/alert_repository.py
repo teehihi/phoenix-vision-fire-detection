@@ -26,6 +26,14 @@ class AlertRepository:
         reference.delete()
         return True
 
+    def delete_by_detection_ids(self, user_id: str, detection_ids: set[str]) -> None:
+        if not detection_ids:
+            return
+
+        for document in get_user_collection(user_id, self.collection_name).stream():
+            if document.to_dict().get("detection_id") in detection_ids:
+                document.reference.delete()
+
     def clear_all(self, user_id: str) -> None:
         delete_collection(get_user_collection(user_id, self.collection_name))
 

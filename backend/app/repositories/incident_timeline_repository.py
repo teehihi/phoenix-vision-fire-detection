@@ -38,6 +38,16 @@ class IncidentTimelineRepository:
         get_user_collection(user_id, self.collection_name).document(event.id).set(data)
         return event
 
+    def find(self, user_id: str, event_id: str) -> IncidentTimelineEvent | None:
+        snapshot = get_user_collection(user_id, self.collection_name).document(event_id).get()
+        return IncidentTimelineEvent.model_validate(snapshot.to_dict()) if snapshot.exists else None
+
+    def has_emergency_reference(self, user_id: str, emergency_event_id: str) -> bool:
+        return any(
+            event.metadata.get("emergencyEventId") == emergency_event_id
+            for event in self.list(user_id)
+        )
+
     def delete(self, user_id: str, event_id: str) -> bool:
         reference = get_user_collection(user_id, self.collection_name).document(event_id)
         if not reference.get().exists:
