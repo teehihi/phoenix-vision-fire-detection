@@ -23,7 +23,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--width", type=int, default=settings.camera_width, help="Capture width.")
     parser.add_argument("--height", type=int, default=settings.camera_height, help="Capture height.")
     parser.add_argument("--fps", type=int, default=settings.camera_fps, help="Requested camera FPS.")
-    parser.add_argument("--fire-conf", type=float, default=0.65, help="Minimum stable confidence for fire.")
+    parser.add_argument("--fire-conf", type=float, default=0.55, help="Minimum stable confidence for fire.")
     parser.add_argument("--smoke-conf", type=float, default=0.12, help="Minimum stable confidence for smoke.")
     parser.add_argument("--person-conf", type=float, default=0.45, help="Minimum confidence for person detection.")
     parser.add_argument("--smoothing-window", type=int, default=5, help="Number of recent frames used for smoothing.")
