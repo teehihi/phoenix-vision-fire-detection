@@ -9,7 +9,9 @@ class StableDetectionConfig:
     window_size: int = 5
     min_hits: int = 3
     fire_confidence: float = 0.65
+    supported_fire_confidence: float = 0.25
     smoke_confidence: float = 0.12
+    smoke_activation_confidence: float = 0.20
     person_confidence: float = 0.45
     min_area_ratio: float = 0.001
     cooldown_frames: int = 2
@@ -28,6 +30,12 @@ class TemporalDetectionSmoother:
         self.history.append(filtered)
 
         stable_labels = self._stable_labels()
+        if "fire" in stable_labels:
+            stable_labels.discard("smoke")
+            self.active_labels.discard("smoke")
+            self.missed_frames["smoke"] = 0
+            self.last_stable_detections["smoke"] = []
+
         output = [detection for detection in filtered if detection.label.lower() not in {"fire", "smoke"}]
 
         for label in ("fire", "smoke"):
@@ -66,6 +74,12 @@ class TemporalDetectionSmoother:
     ) -> list[DetectionResult]:
         frame_area = max(frame_width * frame_height, 1)
         filtered: list[DetectionResult] = []
+        has_smoke_support = any(
+            detection.label.lower() == "smoke"
+            and detection.confidence >= self.config.smoke_confidence
+            and detection.boxes
+            for detection in detections
+        )
 
         for detection in detections:
             label = detection.label.lower()
@@ -78,7 +92,13 @@ class TemporalDetectionSmoother:
                 filtered.append(detection)
                 continue
 
-            min_confidence = self.config.fire_confidence if label == "fire" else self.config.smoke_confidence
+            min_confidence = self.config.smoke_confidence
+            if label == "fire":
+                min_confidence = (
+                    self.config.supported_fire_confidence
+                    if has_smoke_support
+                    else self.config.fire_confidence
+                )
             if detection.confidence < min_confidence:
                 continue
 
@@ -95,11 +115,26 @@ class TemporalDetectionSmoother:
 
     def _stable_labels(self) -> set[str]:
         hits: dict[str, int] = {"fire": 0, "smoke": 0}
+        confidence_totals: dict[str, float] = {"fire": 0.0, "smoke": 0.0}
 
         for frame_detections in self.history:
-            labels = {detection.label.lower() for detection in frame_detections}
             for label in hits:
-                if label in labels:
+                confidences = [
+                    detection.confidence
+                    for detection in frame_detections
+                    if detection.label.lower() == label
+                ]
+                if confidences:
                     hits[label] += 1
+                    confidence_totals[label] += max(confidences)
 
-        return {label for label, count in hits.items() if count >= self.config.min_hits}
+        stable_labels = {
+            label
+            for label, count in hits.items()
+            if count >= self.config.min_hits
+        }
+        if "smoke" in stable_labels:
+            smoke_average = confidence_totals["smoke"] / hits["smoke"]
+            if smoke_average < self.config.smoke_activation_confidence:
+                stable_labels.discard("smoke")
+        return stable_labels

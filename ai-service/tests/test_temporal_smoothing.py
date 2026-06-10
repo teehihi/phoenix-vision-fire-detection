@@ -8,6 +8,7 @@ def test_uses_separate_thresholds_for_fire_smoke_and_person() -> None:
             window_size=1,
             min_hits=1,
             fire_confidence=0.70,
+            supported_fire_confidence=0.70,
             smoke_confidence=0.60,
             person_confidence=0.50,
             min_area_ratio=0.0,
@@ -88,17 +89,48 @@ def test_drops_tiny_hazard_boxes_before_risk_analysis() -> None:
 
 
 def test_default_thresholds_reject_skin_fire_and_keep_stable_smoke() -> None:
-    smoother = TemporalDetectionSmoother(StableDetectionConfig(min_area_ratio=0.0))
+    fire_smoother = TemporalDetectionSmoother(StableDetectionConfig(min_area_ratio=0.0))
     false_fire = _detection("fire", 0.62)
+
+    for _ in range(3):
+        fire_output = fire_smoother.update([false_fire], frame_width=640, frame_height=480)
+
+    assert fire_output == []
+
+    smoke_smoother = TemporalDetectionSmoother(StableDetectionConfig(min_area_ratio=0.0))
     smoke = _detection("smoke", 0.25)
 
-    first = smoother.update([false_fire, smoke], frame_width=640, frame_height=480)
-    second = smoother.update([false_fire, smoke], frame_width=640, frame_height=480)
-    third = smoother.update([false_fire, smoke], frame_width=640, frame_height=480)
+    first = smoke_smoother.update([smoke], frame_width=640, frame_height=480)
+    second = smoke_smoother.update([smoke], frame_width=640, frame_height=480)
+    third = smoke_smoother.update([smoke], frame_width=640, frame_height=480)
 
     assert first == []
     assert second == []
     assert [detection.label for detection in third] == ["smoke"]
+
+
+def test_smoke_supports_low_confidence_fire_and_fire_takes_priority() -> None:
+    smoother = TemporalDetectionSmoother(StableDetectionConfig(min_area_ratio=0.0))
+    fire = _detection("fire", 0.35)
+    smoke = _detection("smoke", 0.25)
+
+    first = smoother.update([fire, smoke], frame_width=640, frame_height=480)
+    second = smoother.update([fire, smoke], frame_width=640, frame_height=480)
+    third = smoother.update([fire, smoke], frame_width=640, frame_height=480)
+
+    assert first == []
+    assert second == []
+    assert [detection.label for detection in third] == ["fire"]
+
+
+def test_rejects_stable_but_weak_smoke() -> None:
+    smoother = TemporalDetectionSmoother(StableDetectionConfig(min_area_ratio=0.0))
+    weak_smoke = _detection("smoke", 0.13)
+
+    for _ in range(5):
+        output = smoother.update([weak_smoke], frame_width=640, frame_height=480)
+
+    assert output == []
 
 
 def _detection(

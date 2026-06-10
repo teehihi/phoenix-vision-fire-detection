@@ -562,16 +562,22 @@ function CameraGridCard({
 }
 
 function CameraPlaceholder({ cameraItem }: { cameraItem: CameraItem }) {
-  const offline = cameraItem.status === 'offline';
   const disabled = cameraItem.enabled === false;
-  const title = disabled ? 'Camera đang tắt' : offline ? 'Camera mất kết nối' : 'Camera đang chờ cấu hình stream';
+  const hasConfiguredStream = cameraItem.isPrimary || Boolean(cameraItem.streamUrl?.trim());
+  const disconnected = !disabled && !cameraItem.frame && hasConfiguredStream;
+  const title = disabled
+    ? 'Camera đang tắt'
+    : disconnected
+      ? 'Camera mất kết nối'
+      : 'Camera đang chờ cấu hình stream';
+  const subtitle = disconnected ? 'Đang thử kết nối lại...' : cameraItem.zone;
 
   return (
-    <div className={`grid h-full place-items-center ${offline ? 'bg-slate-900' : 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950'}`}>
+    <div className={`grid h-full place-items-center ${disconnected ? 'bg-slate-900' : 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950'}`}>
       <div className="text-center text-white">
-        {disabled ? <VideoOff className="mx-auto mb-3 text-slate-500" size={36} /> : offline ? <WifiOff className="mx-auto mb-3 text-slate-500" size={36} /> : <Video className="mx-auto mb-3 text-slate-400" size={36} />}
+        {disabled ? <VideoOff className="mx-auto mb-3 text-slate-500" size={36} /> : disconnected ? <WifiOff className="mx-auto mb-3 text-slate-500" size={36} /> : <Video className="mx-auto mb-3 text-slate-400" size={36} />}
         <p className="text-sm font-semibold">{title}</p>
-        <p className="mt-1 text-xs text-slate-400">{cameraItem.zone}</p>
+        <p className="mt-1 text-xs text-slate-400">{subtitle}</p>
       </div>
     </div>
   );
