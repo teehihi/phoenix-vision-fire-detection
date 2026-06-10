@@ -133,6 +133,16 @@ def test_rejects_stable_but_weak_smoke() -> None:
     assert output == []
 
 
+def test_rejects_extremely_wide_smoke_box_like_clothing() -> None:
+    smoother = TemporalDetectionSmoother(StableDetectionConfig(min_area_ratio=0.0))
+    clothing = _detection("smoke", 0.30, width=500, height=80)
+
+    for _ in range(5):
+        output = smoother.update([clothing], frame_width=1280, frame_height=720)
+
+    assert output == []
+
+
 def _detection(
     label: str,
     confidence: float,

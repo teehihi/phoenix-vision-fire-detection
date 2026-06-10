@@ -16,6 +16,8 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<number | null>(null);
   const connectTimer = useRef<number | null>(null);
+  const frameWatchdogTimer = useRef<number | null>(null);
+  const lastFrameAtRef = useRef(0);
   const lastSyncRiskLevelRef = useRef<string>('LOW');
   const pendingSyncRiskLevelRef = useRef<string | null>(null);
   const lastSyncAttemptAtRef = useRef(0);
@@ -30,6 +32,9 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
       }
       if (reconnectTimer.current) {
         window.clearTimeout(reconnectTimer.current);
+      }
+      if (frameWatchdogTimer.current) {
+        window.clearInterval(frameWatchdogTimer.current);
       }
       socketRef.current?.close();
       return;
@@ -47,6 +52,7 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
           return;
         }
         reconnectAttempt.current = 0;
+        lastFrameAtRef.current = Date.now();
         setState('connected');
         setError(null);
       };
@@ -65,6 +71,7 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
 
         if (message.type === 'processed_frame') {
           const frameMsg = message as ProcessedFrameMessage;
+          lastFrameAtRef.current = Date.now();
           setFrame(frameMsg);
 
           const risk = frameMsg.risk;
@@ -125,6 +132,19 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
     }
 
     connectTimer.current = window.setTimeout(connect, 150);
+    frameWatchdogTimer.current = window.setInterval(() => {
+      if (
+        socketRef.current?.readyState === WebSocket.OPEN
+        && lastFrameAtRef.current
+        && Date.now() - lastFrameAtRef.current > 2500
+      ) {
+        setFrame(null);
+        setState('reconnecting');
+        setError('Camera đã ngừng gửi frame. Đang thử kết nối lại.');
+        socketRef.current.close();
+      }
+    }, 500);
+
     return () => {
       shouldReconnect = false;
       if (connectTimer.current) {
@@ -132,6 +152,9 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
       }
       if (reconnectTimer.current) {
         window.clearTimeout(reconnectTimer.current);
+      }
+      if (frameWatchdogTimer.current) {
+        window.clearInterval(frameWatchdogTimer.current);
       }
       socketRef.current?.close();
     };

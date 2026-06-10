@@ -12,6 +12,7 @@ class StableDetectionConfig:
     supported_fire_confidence: float = 0.25
     smoke_confidence: float = 0.12
     smoke_activation_confidence: float = 0.20
+    smoke_max_aspect_ratio: float = 4.0
     person_confidence: float = 0.45
     min_area_ratio: float = 0.001
     cooldown_frames: int = 2
@@ -108,6 +109,16 @@ class TemporalDetectionSmoother:
             largest_area = max(box.width * box.height for box in detection.boxes)
             if largest_area / frame_area < self.config.min_area_ratio:
                 continue
+
+            if label == "smoke":
+                plausible_boxes = [
+                    box
+                    for box in detection.boxes
+                    if max(box.width / max(box.height, 1), box.height / max(box.width, 1))
+                    <= self.config.smoke_max_aspect_ratio
+                ]
+                if not plausible_boxes:
+                    continue
 
             filtered.append(detection)
 

@@ -145,14 +145,22 @@ export function CameraMonitoringProvider({ children }: { children: ReactNode }) 
     });
     if (runtime.frame) {
       publishRiskNotification(runtime.frame);
+    } else if (runtime.state !== 'connected') {
+      lastRiskLevelByCamera.current[cameraId] = 'LOW';
+      delete dismissedRiskLevelByCamera.current[cameraId];
+      setToasts((current) => current.filter((toast) => toast.cameraId !== cameraId));
     }
   }, [publishRiskNotification]);
 
   useEffect(() => {
     if (primaryStream.frame) {
       publishRiskNotification(primaryStream.frame);
+    } else if (primaryStream.state !== 'connected') {
+      lastRiskLevelByCamera.current['webcam-0'] = 'LOW';
+      delete dismissedRiskLevelByCamera.current['webcam-0'];
+      setToasts((current) => current.filter((toast) => toast.cameraId !== 'webcam-0'));
     }
-  }, [primaryStream.frame, publishRiskNotification]);
+  }, [primaryStream.frame, primaryStream.state, publishRiskNotification]);
 
   useEffect(() => {
     const activeIds = new Set(registryCameras.map((camera) => camera.id));
