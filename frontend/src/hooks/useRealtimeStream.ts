@@ -141,6 +141,60 @@ export function buildCameraStreamUrl(camera: { id: string; source: string; strea
   return url.toString();
 }
 
+export function testCameraConnection(
+  camera: { id: string; source: string; streamUrl?: string },
+  timeoutMs = 15000
+) {
+  const streamUrl = buildCameraStreamUrl(camera);
+
+  return new Promise<{ fps: number }>((resolve, reject) => {
+    let settled = false;
+    let socket: WebSocket;
+
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      socket?.close(1000, 'Connection test complete');
+      callback();
+    };
+
+    const timeout = window.setTimeout(() => {
+      finish(() => reject(new Error('Không nhận được hình ảnh trong thời gian cho phép.')));
+    }, timeoutMs);
+
+    try {
+      socket = new WebSocket(streamUrl);
+    } catch {
+      finish(() => reject(new Error('Không thể tạo kết nối tới AI service.')));
+      return;
+    }
+
+    socket.onmessage = (event) => {
+      let message: { type?: string; fps?: number };
+      try {
+        message = JSON.parse(event.data);
+      } catch {
+        return;
+      }
+
+      if (message.type === 'processed_frame') {
+        finish(() => resolve({ fps: Number(message.fps ?? 0) }));
+      } else if (message.type === 'stream_error') {
+        finish(() => reject(new Error('Camera không trả về hình ảnh. Hãy kiểm tra URL và thông tin đăng nhập.')));
+      }
+    };
+
+    socket.onerror = () => {
+      finish(() => reject(new Error('Không thể kết nối tới camera hoặc AI service.')));
+    };
+
+    socket.onclose = () => {
+      finish(() => reject(new Error('Kết nối đã đóng trước khi nhận được hình ảnh.')));
+    };
+  });
+}
+
 function normalizeStreamUrl(value?: string) {
   const fallback = `ws://${window.location.hostname || 'localhost'}:8100${streamPath}`;
   const rawValue = value?.trim();

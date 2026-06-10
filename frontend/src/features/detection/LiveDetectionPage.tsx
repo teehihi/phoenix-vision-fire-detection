@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity,
   AlertTriangle,
+  CheckCircle2,
   Clock3,
   DoorOpen,
   Edit3,
@@ -10,6 +11,7 @@ import {
   Flame,
   LayoutGrid,
   ListChecks,
+  LoaderCircle,
   MapPin,
   Maximize2,
   Plus,
@@ -21,8 +23,9 @@ import {
   WifiOff,
   X
 } from 'lucide-react';
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { testCameraConnection } from '../../hooks/useRealtimeStream';
 import { getIncidentTimeline } from '../../lib/apiClient';
 import type { IncidentTimelineEvent, ProcessedFrameMessage, RealtimeRiskPayload } from '../../types/detection';
 import { type CameraRegistryInput, type CameraRegistryItem, type CameraSource } from './useCameraRegistry';
@@ -31,6 +34,11 @@ import { useCameraMonitoring } from './CameraMonitoringContext';
 type CameraStatus = 'online' | 'warning' | 'offline';
 type RiskLevel = RealtimeRiskPayload['riskLevel'];
 type GridMode = 'auto' | 'two' | 'three';
+type ConnectionTestState =
+  | { status: 'idle' }
+  | { status: 'testing' }
+  | { status: 'success'; fps: number }
+  | { status: 'error'; message: string };
 type CameraPanelState = { mode: 'create' } | { mode: 'edit'; camera: CameraItem };
 type CameraItem = {
   id: string;
@@ -1020,7 +1028,36 @@ function CameraFormPanel({
   const [source, setSource] = useState<CameraSource>(initialInput.source);
   const [enabled, setEnabled] = useState(initialInput.enabled);
   const [submitting, setSubmitting] = useState(false);
+  const [connectionTest, setConnectionTest] = useState<ConnectionTestState>({ status: 'idle' });
+  const connectionTestVersion = useRef(0);
   const isEdit = panelState.mode === 'edit';
+  const canTest = source === 'webcam' || Boolean(streamUrl.trim());
+
+  function resetConnectionTest() {
+    connectionTestVersion.current += 1;
+    setConnectionTest({ status: 'idle' });
+  }
+
+  async function handleConnectionTest() {
+    const testVersion = connectionTestVersion.current + 1;
+    connectionTestVersion.current = testVersion;
+    setConnectionTest({ status: 'testing' });
+    try {
+      const result = await testCameraConnection({
+        id: panelState.mode === 'edit' ? panelState.camera.id : 'camera-connection-test',
+        source,
+        streamUrl: source === 'webcam' ? streamUrl.trim() || '0' : streamUrl.trim()
+      });
+      if (connectionTestVersion.current !== testVersion) return;
+      setConnectionTest({ status: 'success', fps: result.fps });
+    } catch (testError) {
+      if (connectionTestVersion.current !== testVersion) return;
+      setConnectionTest({
+        status: 'error',
+        message: testError instanceof Error ? testError.message : 'Không thể kiểm tra kết nối camera.'
+      });
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1066,7 +1103,10 @@ function CameraFormPanel({
           <FormField
             label={source === 'webcam' ? 'Webcam index' : 'RTSP hoặc IP stream URL'}
             value={streamUrl}
-            onChange={setStreamUrl}
+            onChange={(value) => {
+              setStreamUrl(value);
+              resetConnectionTest();
+            }}
             placeholder={source === 'webcam' ? '0 hoặc 1' : 'rtsp://username:password@camera-ip:554/stream'}
             required={source !== 'webcam'}
           />
@@ -1074,7 +1114,10 @@ function CameraFormPanel({
             <span className="text-sm font-semibold text-slate-700">Loại nguồn</span>
             <select
               value={source}
-              onChange={(event) => setSource(event.target.value as CameraSource)}
+              onChange={(event) => {
+                setSource(event.target.value as CameraSource);
+                resetConnectionTest();
+              }}
               className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-orange-300 focus:ring-4 focus:ring-orange-100"
             >
               <option value="rtsp">RTSP camera</option>
@@ -1098,13 +1141,37 @@ function CameraFormPanel({
 
           {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
 
-          <button
-            type="submit"
-            disabled={submitting || !name.trim() || !location.trim() || !zone.trim() || (source !== 'webcam' && !streamUrl.trim())}
-            className="w-full rounded-xl bg-orange-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-orange-600/20 transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {submitting ? 'Đang lưu...' : isEdit ? 'Cập nhật camera' : 'Lưu camera'}
-          </button>
+          {connectionTest.status === 'success' ? (
+            <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+              <CheckCircle2 size={18} className="shrink-0" />
+              <span>Đã nhận được hình ảnh từ camera{connectionTest.fps > 0 ? `, khoảng ${connectionTest.fps.toFixed(1)} FPS` : ''}.</span>
+            </div>
+          ) : null}
+          {connectionTest.status === 'error' ? (
+            <div className="flex items-start gap-2 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+              <span>{connectionTest.message}</span>
+            </div>
+          ) : null}
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={handleConnectionTest}
+              disabled={submitting || connectionTest.status === 'testing' || !canTest}
+              className="flex items-center justify-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-semibold text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {connectionTest.status === 'testing' ? <LoaderCircle size={17} className="animate-spin" /> : <Wifi size={17} />}
+              {connectionTest.status === 'testing' ? 'Đang kiểm tra...' : 'Kiểm tra kết nối'}
+            </button>
+            <button
+              type="submit"
+              disabled={submitting || connectionTest.status === 'testing' || !name.trim() || !location.trim() || !zone.trim() || (source !== 'webcam' && !streamUrl.trim())}
+              className="rounded-xl bg-orange-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-orange-600/20 transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {submitting ? 'Đang lưu...' : isEdit ? 'Cập nhật camera' : 'Lưu camera'}
+            </button>
+          </div>
         </form>
       </motion.aside>
     </motion.div>,
