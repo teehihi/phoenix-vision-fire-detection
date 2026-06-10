@@ -273,6 +273,7 @@ export function LiveDetectionPage() {
         {cameraPanel ? (
           <CameraFormPanel
             panelState={cameraPanel}
+            activeCamera={cameraPanel.mode === 'edit' ? cameras.find((camera) => camera.id === cameraPanel.camera.id) ?? null : null}
             error={cameraMutationError}
             onClose={() => setCameraPanel(null)}
             onSubmit={handleSaveCamera}
@@ -1011,11 +1012,13 @@ function CameraManagerModal({
 
 function CameraFormPanel({
   panelState,
+  activeCamera,
   error,
   onClose,
   onSubmit
 }: {
   panelState: CameraPanelState;
+  activeCamera: CameraItem | null;
   error: string | null;
   onClose: () => void;
   onSubmit: (input: CameraRegistryInput) => Promise<void>;
@@ -1042,6 +1045,15 @@ function CameraFormPanel({
     const testVersion = connectionTestVersion.current + 1;
     connectionTestVersion.current = testVersion;
     setConnectionTest({ status: 'testing' });
+
+    const usesSavedSource = panelState.mode === 'edit'
+      && source === initialInput.source
+      && streamUrl.trim() === initialInput.streamUrl.trim();
+    if (usesSavedSource && activeCamera?.frame) {
+      setConnectionTest({ status: 'success', fps: activeCamera.frame.fps });
+      return;
+    }
+
     try {
       const result = await testCameraConnection({
         id: panelState.mode === 'edit' ? panelState.camera.id : 'camera-connection-test',

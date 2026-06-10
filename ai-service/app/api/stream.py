@@ -33,9 +33,10 @@ async def stream_webcam(websocket: WebSocket) -> None:
     person_model_path = query.get("person_model", "")
     person_every = max(int(query.get("person_every", 4)), 1)
     max_read_failures = max(int(query.get("read_failures", 30)), 1)
+    probe_only = query.get("probe") == "1"
 
-    fire_detector = get_yolo_detector(model_path)
-    person_detector = get_yolo_detector(person_model_path) if person_model_path else None
+    fire_detector = None if probe_only else get_yolo_detector(model_path)
+    person_detector = get_yolo_detector(person_model_path) if person_model_path and not probe_only else None
     stream = WebcamStream(
         camera_index=camera_index,
         source=source_url,
@@ -58,7 +59,19 @@ async def stream_webcam(websocket: WebSocket) -> None:
             if frame is None:
                 break
 
+            if probe_only:
+                await websocket.send_json(
+                    {
+                        "type": "connection_test",
+                        "cameraId": camera_id,
+                        "width": int(frame.shape[1]),
+                        "height": int(frame.shape[0]),
+                    }
+                )
+                return
+
             started_at = time.perf_counter()
+            assert fire_detector is not None
             fire_detections = await asyncio.to_thread(fire_detector.predict, frame)
             detections = smoother.update(fire_detections, frame_width=frame.shape[1], frame_height=frame.shape[0])
 
