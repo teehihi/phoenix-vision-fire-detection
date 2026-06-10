@@ -107,6 +107,7 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
         if (socketRef.current !== socket) {
           return;
         }
+        setFrame(null);
         setState('error');
         setError('Realtime stream connection error.');
       };
@@ -115,6 +116,7 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
         if (!shouldReconnect || socketRef.current !== socket) {
           return;
         }
+        setFrame(null);
         reconnectAttempt.current += 1;
         const delay = Math.min(8000, 800 * reconnectAttempt.current);
         setState('reconnecting');

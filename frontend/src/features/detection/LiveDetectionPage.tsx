@@ -78,13 +78,6 @@ const statusLabel: Record<CameraStatus, string> = {
   offline: 'Mất kết nối'
 };
 
-const cameraRuntimeDefaults: Record<string, Partial<CameraItem>> = {
-  'cam-lobby-a01': { status: 'online', riskLevel: 'LOW', riskScore: 8, fps: 15, lastSeen: 'Vừa xong', fire: 0, smoke: 0 },
-  'cam-corridor-02': { status: 'warning', riskLevel: 'MEDIUM', riskScore: 42, fps: 12, lastSeen: '12 giây trước', fire: 0, smoke: 1 },
-  'cam-parking-b1': { status: 'online', riskLevel: 'LOW', riskScore: 12, fps: 14, lastSeen: 'Vừa xong', fire: 0, smoke: 0 },
-  'cam-stairs-03': { status: 'offline', riskLevel: 'LOW', riskScore: 0, fps: 0, lastSeen: '4 phút trước', fire: 0, smoke: 0 }
-};
-
 export function LiveDetectionPage() {
   const {
     registryCameras,
@@ -370,12 +363,10 @@ function createPrimaryCamera(frame: ProcessedFrameMessage | null, state: string)
 }
 
 function createRegistryCamera(camera: CameraRegistryItem, frame: ProcessedFrameMessage | null, streamState: string): CameraItem {
-  const defaults = cameraRuntimeDefaults[camera.id] ?? {};
   const hasStreamUrl = Boolean(camera.streamUrl.trim());
   const risk = frame?.risk;
   const detections = frame?.detections ?? [];
   const activeStatus: CameraStatus = streamState === 'connected' ? 'online' : streamState === 'error' ? 'offline' : 'warning';
-  const configuredStatus = hasStreamUrl ? ((defaults.status as CameraStatus | undefined) ?? 'online') : 'warning';
 
   return {
     id: camera.id,
@@ -383,13 +374,21 @@ function createRegistryCamera(camera: CameraRegistryItem, frame: ProcessedFrameM
     location: camera.location,
     zone: camera.zone,
     source: camera.source,
-    status: camera.enabled ? (frame || streamState !== 'idle' ? activeStatus : configuredStatus) : 'offline',
-    riskLevel: risk?.riskLevel ?? ((defaults.riskLevel as RiskLevel | undefined) ?? 'LOW'),
-    riskScore: risk?.riskScore ?? (hasStreamUrl ? defaults.riskScore ?? 0 : 0),
-    fps: camera.enabled ? frame?.fps ?? (hasStreamUrl ? defaults.fps ?? 0 : 0) : 0,
-    lastSeen: camera.enabled ? (frame ? 'Vừa xong' : hasStreamUrl ? defaults.lastSeen ?? 'Đã cấu hình' : 'Chưa có stream URL') : 'Đã tắt',
-    fire: frame ? detections.filter((item) => item.label === 'fire').length : hasStreamUrl ? defaults.fire ?? 0 : 0,
-    smoke: frame ? detections.filter((item) => item.label === 'smoke').length : hasStreamUrl ? defaults.smoke ?? 0 : 0,
+    status: camera.enabled ? activeStatus : 'offline',
+    riskLevel: risk?.riskLevel ?? 'LOW',
+    riskScore: risk?.riskScore ?? 0,
+    fps: camera.enabled ? frame?.fps ?? 0 : 0,
+    lastSeen: camera.enabled
+      ? frame
+        ? 'Vừa xong'
+        : hasStreamUrl
+          ? streamState === 'error'
+            ? 'Mất kết nối'
+            : 'Đang kết nối'
+          : 'Chưa có stream URL'
+      : 'Đã tắt',
+    fire: detections.filter((item) => item.label === 'fire').length,
+    smoke: detections.filter((item) => item.label === 'smoke').length,
     streamUrl: camera.streamUrl,
     enabled: camera.enabled,
     frame
