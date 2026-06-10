@@ -80,7 +80,7 @@ class DangerAnalyzer:
         return DangerAnalysisResult(
             risk_level=risk_level,
             risk_score=risk_score,
-            status=self._status(risk_level, hazard_detected, human_at_risk),
+            status=self._status(risk_level, fire_detected, smoke_detected, human_at_risk),
             fire_detected=fire_detected,
             smoke_detected=smoke_detected,
             human_detected=human_detected,
@@ -229,16 +229,23 @@ class DangerAnalyzer:
         return RiskLevel.LOW
 
     @staticmethod
-    def _status(risk_level: RiskLevel, hazard_detected: bool, human_at_risk: bool) -> str:
+    def _status(
+        risk_level: RiskLevel,
+        fire_detected: bool,
+        smoke_detected: bool,
+        human_at_risk: bool,
+    ) -> str:
         if human_at_risk:
             return "HUMAN AT RISK"
         if risk_level == RiskLevel.CRITICAL:
             return "CRITICAL FIRE RISK"
         if risk_level in {RiskLevel.HIGH, RiskLevel.CRITICAL}:
             return "HIGH FIRE RISK"
+        if smoke_detected and not fire_detected:
+            return "SMOKE DETECTED - POSSIBLE FIRE"
         if risk_level == RiskLevel.MEDIUM:
             return "FIRE/SMOKE DETECTED"
-        if hazard_detected:
+        if fire_detected or smoke_detected:
             return "MONITORING FIRE/SMOKE"
         return "SAFE"
 

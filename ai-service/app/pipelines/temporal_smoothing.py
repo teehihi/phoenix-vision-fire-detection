@@ -8,8 +8,8 @@ from app.schemas.detection import DetectionResult
 class StableDetectionConfig:
     window_size: int = 5
     min_hits: int = 3
-    fire_confidence: float = 0.55
-    smoke_confidence: float = 0.50
+    fire_confidence: float = 0.65
+    smoke_confidence: float = 0.12
     person_confidence: float = 0.45
     min_area_ratio: float = 0.001
     cooldown_frames: int = 2

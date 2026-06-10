@@ -87,6 +87,20 @@ def test_drops_tiny_hazard_boxes_before_risk_analysis() -> None:
     assert output == []
 
 
+def test_default_thresholds_reject_skin_fire_and_keep_stable_smoke() -> None:
+    smoother = TemporalDetectionSmoother(StableDetectionConfig(min_area_ratio=0.0))
+    false_fire = _detection("fire", 0.62)
+    smoke = _detection("smoke", 0.25)
+
+    first = smoother.update([false_fire, smoke], frame_width=640, frame_height=480)
+    second = smoother.update([false_fire, smoke], frame_width=640, frame_height=480)
+    third = smoother.update([false_fire, smoke], frame_width=640, frame_height=480)
+
+    assert first == []
+    assert second == []
+    assert [detection.label for detection in third] == ["smoke"]
+
+
 def _detection(
     label: str,
     confidence: float,

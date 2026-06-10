@@ -46,7 +46,8 @@ async def stream_webcam(websocket: WebSocket) -> None:
         max_read_failures=max_read_failures,
     )
     fps_counter = FPSCounter()
-    smoother = TemporalDetectionSmoother(StableDetectionConfig())
+    stable_detection_config = StableDetectionConfig()
+    smoother = TemporalDetectionSmoother(stable_detection_config)
     analyzer = DangerAnalyzer(DangerAnalysisConfig())
     person_detections = []
     frame_index = 0
@@ -72,7 +73,14 @@ async def stream_webcam(websocket: WebSocket) -> None:
 
             started_at = time.perf_counter()
             assert fire_detector is not None
-            fire_detections = await asyncio.to_thread(fire_detector.predict, frame)
+            fire_detections = await asyncio.to_thread(
+                fire_detector.predict,
+                frame,
+                confidence=min(
+                    stable_detection_config.fire_confidence,
+                    stable_detection_config.smoke_confidence,
+                ),
+            )
             detections = smoother.update(fire_detections, frame_width=frame.shape[1], frame_height=frame.shape[0])
 
             if person_detector is not None and frame_index % person_every == 0:

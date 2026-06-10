@@ -51,6 +51,21 @@ def test_risk_score_increases_with_duration_and_consistency() -> None:
     assert later.risk_factors.duration_score == 80.0
 
 
+def test_smoke_only_is_reported_as_possible_fire() -> None:
+    analyzer = DangerAnalyzer(DangerAnalysisConfig())
+
+    analysis = analyzer.analyze(
+        [_detection("smoke", 0.30, 20, 20, 120, 160)],
+        frame_width=640,
+        frame_height=480,
+    )
+
+    assert analysis.risk_level == RiskLevel.MEDIUM
+    assert analysis.smoke_detected is True
+    assert analysis.fire_detected is False
+    assert analysis.status == "SMOKE DETECTED - POSSIBLE FIRE"
+
+
 def _detection(label: str, confidence: float, x: float, y: float, width: float, height: float) -> DetectionResult:
     return DetectionResult(
         label=label,
