@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth } from './firebase';
 import type { AlertEvent, DetectionEvent, EmergencyEvent, EmergencyStatus, IncidentTimelineEvent } from '../types/detection';
 
@@ -6,13 +7,55 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1'
 });
 
+let tokenUserId: string | null = null;
+
+async function getAuthenticatedUser() {
+  await auth.authStateReady();
+  if (auth.currentUser) {
+    return auth.currentUser;
+  }
+
+  return new Promise<User | null>((resolve) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe();
+      resolve(user);
+    });
+  });
+}
+
 api.interceptors.request.use(async (config) => {
-  const user = auth.currentUser;
+  const user = await getAuthenticatedUser();
+  delete config.headers.Authorization;
+
   if (user) {
-    config.headers.Authorization = `Bearer ${await user.getIdToken()}`;
+    const userChanged = tokenUserId !== null && tokenUserId !== user.uid;
+    tokenUserId = user.uid;
+    config.headers.Authorization = `Bearer ${await user.getIdToken(userChanged)}`;
+  } else {
+    tokenUserId = null;
   }
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config as (typeof error.config & { _authRetried?: boolean }) | undefined;
+    if (error.response?.status !== 401 || !originalRequest || originalRequest._authRetried) {
+      throw error;
+    }
+
+    const user = await getAuthenticatedUser();
+    if (!user) {
+      throw error;
+    }
+
+    originalRequest._authRetried = true;
+    tokenUserId = user.uid;
+    originalRequest.headers.Authorization = `Bearer ${await user.getIdToken(true)}`;
+    return api.request(originalRequest);
+  }
+);
 
 export async function getDetectionHistory() {
   const response = await api.get<DetectionEvent[]>('/detections');

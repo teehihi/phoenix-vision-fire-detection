@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ProcessedFrameMessage } from '../types/detection';
 import { triggerMockEmergency } from '../lib/apiClient';
+import { auth } from '../lib/firebase';
 
 export type ConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error';
 
@@ -16,6 +17,8 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
   const reconnectTimer = useRef<number | null>(null);
   const connectTimer = useRef<number | null>(null);
   const lastSyncRiskLevelRef = useRef<string>('LOW');
+  const pendingSyncRiskLevelRef = useRef<string | null>(null);
+  const lastSyncAttemptAtRef = useRef(0);
 
   useEffect(() => {
     if (!enabled) {
@@ -67,10 +70,16 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
           const risk = frameMsg.risk;
           const currentRiskLevel = risk.riskLevel;
           const levelChanged = currentRiskLevel !== lastSyncRiskLevelRef.current;
+          const canRetrySync = Date.now() - lastSyncAttemptAtRef.current >= 3000;
 
-          if (levelChanged) {
-            lastSyncRiskLevelRef.current = currentRiskLevel;
-
+          if (
+            levelChanged
+            && auth.currentUser
+            && pendingSyncRiskLevelRef.current !== currentRiskLevel
+            && canRetrySync
+          ) {
+            pendingSyncRiskLevelRef.current = currentRiskLevel;
+            lastSyncAttemptAtRef.current = Date.now();
             triggerMockEmergency({
               cameraId: frameMsg.cameraId,
               riskLevel: currentRiskLevel,
@@ -78,8 +87,14 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
               humanAtRisk: risk.humanAtRisk,
               message: `Hệ thống tự động phát hiện cảnh báo nguy cơ: ${risk.status}`,
               snapshotUrl: `data:image/jpeg;base64,${frameMsg.frame}`
+            }).then(() => {
+              lastSyncRiskLevelRef.current = currentRiskLevel;
             }).catch(() => {
-              // Ignore background sync errors
+              // Retry on a later frame after the cooldown.
+            }).finally(() => {
+              if (pendingSyncRiskLevelRef.current === currentRiskLevel) {
+                pendingSyncRiskLevelRef.current = null;
+              }
             });
           }
         }
