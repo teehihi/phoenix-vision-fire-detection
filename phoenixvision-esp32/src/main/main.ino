@@ -10,10 +10,13 @@ WebServer server(HTTP_PORT);
 
 bool alarmActive = false;
 
-// Biến cho hiệu ứng nháy còi/đèn (non-blocking)
+// Biến cho hiệu ứng nháy còi/đèn kịch tính (strobe effect)
 unsigned long previousMillis = 0;
-bool sirenState = false;
-const long sirenInterval = 300; // Thời gian mỗi nhịp kêu/sáng (ms) - đổi số này để chớp nhanh/chậm
+// Mảng pattern: Thời gian ON, OFF, ON, OFF, ON, OFF (ms)
+// Sẽ nháy nhanh 3 lần (50ms) rồi nghỉ một nhịp (300ms) tạo cảm giác dồn dập
+const long sirenPattern[] = {50, 50, 50, 50, 50, 300}; 
+const int patternLength = 6;
+int patternIndex = 0;
 
 // Buzzer của ông chạy ổn với:
 // VCC -> 3V3
@@ -60,13 +63,19 @@ void connectWifi() {
 
 void startAlarm() {
   alarmActive = true;
-  // Trạng thái đèn/còi sẽ được cập nhật liên tục trong loop()
-  Serial.println("[INFO] Alarm ON");
+  patternIndex = 0;
+  previousMillis = millis();
+  
+  // Kích hoạt ngay nhịp đầu tiên
+  digitalWrite(LED_PIN, LED_ON_LEVEL);
+  digitalWrite(BUZZER_PIN, BUZZER_ON_LEVEL);
+
+  Serial.println("[INFO] Alarm ON (Intense Mode)");
 }
 
 void stopAlarm() {
   alarmActive = false;
-  sirenState = false; // Reset trạng thái
+  patternIndex = 0; // Reset trạng thái
   digitalWrite(LED_PIN, LED_OFF_LEVEL);
   digitalWrite(BUZZER_PIN, BUZZER_OFF_LEVEL);
   Serial.println("[INFO] Alarm OFF");
@@ -121,14 +130,18 @@ void setup() {
 void loop() {
   server.handleClient();
 
-  // Hiệu ứng nháy còi báo động mà không dùng delay()
+  // Hiệu ứng nháy còi báo động dồn dập (strobe effect)
   if (alarmActive) {
     unsigned long currentMillis = millis();
-    if (currentMillis - previousMillis >= sirenInterval) {
+    // Đợi hết thời gian của nhịp hiện tại trong pattern
+    if (currentMillis - previousMillis >= sirenPattern[patternIndex]) {
       previousMillis = currentMillis;
-      sirenState = !sirenState; // Đảo trạng thái
+      
+      // Chuyển sang nhịp tiếp theo
+      patternIndex = (patternIndex + 1) % patternLength;
 
-      if (sirenState) {
+      // Nhịp chẵn (0, 2, 4...) là ON, nhịp lẻ (1, 3, 5...) là OFF
+      if (patternIndex % 2 == 0) {
         digitalWrite(LED_PIN, LED_ON_LEVEL);
         digitalWrite(BUZZER_PIN, BUZZER_ON_LEVEL);
       } else {
