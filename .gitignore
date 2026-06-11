@@ -22,6 +22,7 @@ dist/
 # Environment
 .env
 .env.local
+phoenixvision-esp32/src/main/secrets.h
 backend/secrets/*
 *service-account*.json
 *firebase-admin*.json
