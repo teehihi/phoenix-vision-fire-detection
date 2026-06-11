@@ -8,7 +8,8 @@ import {
   LayoutDashboard,
   LogOut,
   Siren,
-  X
+  X,
+  Settings
 } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import { useState, useEffect } from 'react';
@@ -22,18 +23,20 @@ import { publicAsset } from '../../lib/assets';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEmergencyTone } from '../../hooks/useEmergencyTone';
-
-const navItems = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/live', label: 'Live Detection', icon: Flame },
-  { to: '/history', label: 'History', icon: History },
-  { to: '/alerts', label: 'Alerts', icon: Siren }
-];
+import { useTranslation } from '../../lib/i18n';
 
 export function AppLayout() {
   const { user, logout } = useAuth();
+  const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
   const [toggleTop, setToggleTop] = useState(44);
+
+  const navItems = [
+    { to: '/', label: t('nav_dashboard', 'Quản lý Camera'), icon: LayoutDashboard },
+    { to: '/statistics', label: t('nav_statistics', 'Thống kê'), icon: Flame },
+    { to: '/history', label: t('nav_history', 'Lịch sử'), icon: History },
+    { to: '/alerts', label: t('nav_alerts', 'Cảnh báo'), icon: Siren }
+  ];
 
   const { toasts, dismissToast, highestEmergencyState } = useCameraMonitoring();
   const [soundEnabled, setSoundEnabled] = useState(() => {
@@ -60,8 +63,8 @@ export function AppLayout() {
     <div className="min-h-screen bg-slate-50">
       <aside
         onMouseMove={handleSidebarMouseMove}
-        className={`group fixed inset-y-0 left-0 hidden border-r border-slate-200 bg-white px-4 py-6 transition-all duration-300 md:block ${
-          collapsed ? 'w-20' : 'w-64'
+        className={`group fixed inset-y-0 left-0 hidden flex-col border-r border-slate-200 bg-white pb-4 pt-6 transition-all duration-300 md:flex ${
+          collapsed ? 'w-20 px-4' : 'w-72 px-5'
         }`}
       >
         <button
@@ -74,54 +77,89 @@ export function AppLayout() {
           {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
         </button>
 
-        <div className={`mb-8 flex ${collapsed ? 'justify-center px-0' : 'px-2'}`}>
+        <div className={`mb-8 flex shrink-0 ${collapsed ? 'justify-center px-0' : 'px-2'}`}>
           <img
             src={publicAsset(collapsed ? 'PhoenixLogoOnly.png' : 'PhoenixLogoLandscape.png')}
             alt="PhoenixVision"
             className={`${collapsed ? 'h-11 w-11 rounded-xl object-contain' : 'h-12 w-auto object-contain'} transition-all duration-300`}
           />
         </div>
-        <nav className="space-y-1">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              title={collapsed ? item.label : undefined}
-              className={({ isActive }) =>
-                `flex items-center rounded-md py-2 text-sm font-medium transition ${
-                  collapsed ? 'justify-center px-0' : 'gap-3 px-3'
-                } ${
-                  isActive ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-100'
-                }`
-              }
-            >
-              <item.icon size={collapsed ? 20 : 18} />
-              {!collapsed ? <span>{item.label}</span> : null}
-            </NavLink>
-          ))}
-        </nav>
+        
+        <div className="flex flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
+          <nav className="space-y-1">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                title={collapsed ? item.label : undefined}
+                className={({ isActive }) =>
+                  `flex items-center rounded-md py-2 text-sm font-medium transition ${
+                    collapsed ? 'justify-center px-0' : 'gap-3 px-3'
+                  } ${
+                    isActive ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-100'
+                  }`
+                }
+              >
+                <item.icon size={collapsed ? 20 : 18} className="shrink-0" />
+                {!collapsed ? <span>{item.label}</span> : null}
+              </NavLink>
+            ))}
+          </nav>
 
-        <div className="absolute inset-x-4 bottom-5">
-          {!collapsed ? (
-            <div className="mb-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <p className="truncate text-xs font-semibold text-slate-500">Tài khoản</p>
-              <p className="mt-1 truncate text-sm font-semibold text-slate-900">{user?.email}</p>
+          <div className="mt-8 space-y-5">
+            {!collapsed ? (
+              <div className="rounded-2xl bg-slate-50 p-4 border border-slate-100 text-[11px] leading-5 text-slate-500">
+                <p className="font-semibold text-orange-600 mb-2 uppercase tracking-wide">Thông tin Đề tài</p>
+                <p className="text-slate-700 font-medium mb-3">{t('project_title', 'Xây dựng hệ thống cảnh báo cháy thông minh sử dụng YOLO và xử lý ảnh thời gian thực')}</p>
+                <p className="font-bold text-slate-600">{t('project_group', 'Nhóm 9')}</p>
+                <ul className="mt-1 mb-3 space-y-0.5">
+                  <li>Nguyễn Nhật Thiên - 23110153</li>
+                  <li>Phạm Văn Hậu - 23110098</li>
+                  <li>Trương Công Anh - 23110075</li>
+                </ul>
+                <p className="font-semibold text-slate-600 border-t border-slate-200 pt-2">{t('project_advisor', 'GVHD: PGS.TS Hoàng Văn Dũng')}</p>
+              </div>
+            ) : null}
+
+            <div className="space-y-1">
+              {!collapsed ? (
+                <div className="mb-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="truncate text-xs font-bold uppercase tracking-wider text-slate-500">{t('account', 'XIN CHÀO')}</p>
+                  <p className="mt-1 truncate text-sm font-semibold text-slate-900">{user?.displayName || user?.email}</p>
+                </div>
+              ) : null}
+              
+              <NavLink
+                to="/settings"
+                title={collapsed ? t('nav_settings', 'Cài đặt') : undefined}
+                className={({ isActive }) =>
+                  `flex w-full items-center rounded-md py-2 text-sm font-medium transition ${
+                    collapsed ? 'justify-center px-0' : 'gap-3 px-3'
+                  } ${
+                    isActive ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-100'
+                  }`
+                }
+              >
+                <Settings size={collapsed ? 20 : 18} className="shrink-0" />
+                {!collapsed ? <span>{t('nav_settings', 'Cài đặt')}</span> : null}
+              </NavLink>
+
+              <button
+                type="button"
+                onClick={() => logout()}
+                title={collapsed ? t('nav_logout', 'Đăng xuất') : undefined}
+                className={`flex w-full items-center rounded-md py-2 text-sm font-medium text-slate-600 transition hover:bg-red-50 hover:text-red-600 ${
+                  collapsed ? 'justify-center px-0' : 'gap-3 px-3'
+                }`}
+              >
+                <LogOut size={collapsed ? 20 : 18} className="shrink-0" />
+                {!collapsed ? <span>{t('nav_logout', 'Đăng xuất')}</span> : null}
+              </button>
             </div>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => logout()}
-            title={collapsed ? 'Đăng xuất' : undefined}
-            className={`flex w-full items-center rounded-md py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 ${
-              collapsed ? 'justify-center px-0' : 'gap-3 px-3'
-            }`}
-          >
-            <LogOut size={collapsed ? 20 : 18} />
-            {!collapsed ? <span>Đăng xuất</span> : null}
-          </button>
+          </div>
         </div>
       </aside>
-      <main className={`transition-all duration-300 ${collapsed ? 'md:pl-20' : 'md:pl-64'}`}>
+      <main className={`transition-all duration-300 ${collapsed ? 'md:pl-20' : 'md:pl-72'}`}>
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
           <Outlet />
         </div>

@@ -8,6 +8,7 @@ import { CameraMonitoringProvider } from '../features/detection/CameraMonitoring
 import { LiveDetectionPage } from '../features/detection/LiveDetectionPage';
 import { HistoryPage } from '../features/history/HistoryPage';
 import { LegalPage } from '../features/legal/LegalPage';
+import { SettingsPage } from '../features/settings/SettingsPage';
 
 export function AppRoutes() {
   return (
@@ -17,10 +18,11 @@ export function AppRoutes() {
       <Route path="/privacy" element={<LegalPage type="privacy" />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<CameraMonitoringProvider><AppLayout /></CameraMonitoringProvider>}>
-          <Route index element={<DashboardPage />} />
-          <Route path="/live" element={<LiveDetectionPage />} />
+          <Route index element={<LiveDetectionPage />} />
+          <Route path="/statistics" element={<DashboardPage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/alerts" element={<AlertsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Route>
       </Route>
     </Routes>

@@ -137,7 +137,8 @@ export function LiveDetectionPage() {
             <p className="mt-1 text-sm text-slate-500">Theo dõi nhiều camera, phân tích cháy khói và cảnh báo rủi ro theo thời gian thực.</p>
           </div>
 
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-3">
+            <div className="h-8 w-px bg-slate-200 hidden md:block" />
             <button
               onClick={() => {
                 setCameraMutationError(null);

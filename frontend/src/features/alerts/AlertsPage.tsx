@@ -3,8 +3,11 @@ import { EmergencyPanel } from '../emergency/EmergencyPanel';
 import { getAlerts, deleteAlert, clearAllAlerts } from '../../lib/apiClient';
 import type { AlertEvent } from '../../types/detection';
 import { AlertCircle, Siren, CheckCircle2, Trash2 } from 'lucide-react';
+import { useTranslation } from '../../lib/i18n';
+import { IoTDeviceStatus } from '../detection/IoTDeviceStatus';
 
 export function AlertsPage() {
+  const { t } = useTranslation();
   const [alerts, setAlerts] = useState<AlertEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,9 +41,12 @@ export function AlertsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-950">Alerts</h1>
-        <p className="text-sm text-slate-500">Review active incidents and acknowledge resolved detections.</p>
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-950">{t('alerts_title', 'Danh sách Cảnh báo')}</h1>
+          <p className="text-sm text-slate-500">{t('alerts_subtitle', 'Các báo động cần xử lý')}</p>
+        </div>
+        <IoTDeviceStatus />
       </div>
 
       <EmergencyPanel compact />

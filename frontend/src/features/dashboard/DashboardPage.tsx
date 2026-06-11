@@ -6,44 +6,17 @@ import { EmergencyPanel } from '../emergency/EmergencyPanel';
 import { getEmergencyStatus, getIncidentTimeline, triggerMockEmergency } from '../../lib/apiClient';
 import type { EmergencyStatus, IncidentTimelineEvent } from '../../types/detection';
 import { useCameraMonitoring } from '../detection/CameraMonitoringContext';
+import { useTranslation } from '../../lib/i18n';
 
 const variants = {
   hidden: { opacity: 0, y: 16 },
   show: { opacity: 1, y: 0 }
 };
 
-const postureStyles = {
-  LOW: {
-    label: 'NORMAL',
-    bg: 'bg-emerald-50/80 border-emerald-100',
-    text: 'text-emerald-700',
-    sub: 'Hệ thống đang hoạt động an toàn',
-    glow: ['0 0 0 rgba(16,185,129,0)', '0 0 16px rgba(16,185,129,0.15)', '0 0 0 rgba(16,185,129,0)']
-  },
-  MEDIUM: {
-    label: 'WARNING',
-    bg: 'bg-amber-50/80 border-amber-100',
-    text: 'text-amber-700',
-    sub: 'Cảnh báo nguy cơ mức độ trung bình',
-    glow: ['0 0 0 rgba(245,158,11,0)', '0 0 20px rgba(245,158,11,0.2)', '0 0 0 rgba(245,158,11,0)']
-  },
-  HIGH: {
-    label: 'HIGH RISK',
-    bg: 'bg-orange-50/80 border-orange-100',
-    text: 'text-orange-700',
-    sub: 'Phát hiện nguy cơ cháy nổ cao',
-    glow: ['0 0 0 rgba(239,68,68,0)', '0 0 32px rgba(239,68,68,0.22)', '0 0 0 rgba(239,68,68,0)']
-  },
-  CRITICAL: {
-    label: 'CRITICAL',
-    bg: 'bg-red-950/90 border-red-900',
-    text: 'text-red-200',
-    sub: 'NGUY HIỂM! Phát hiện cháy và người gặp nạn',
-    glow: ['0 0 0 rgba(220,38,38,0)', '0 0 40px rgba(220,38,38,0.45)', '0 0 0 rgba(220,38,38,0)']
-  }
-};
+
 
 export function DashboardPage() {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<EmergencyStatus | null>(null);
   const [timelineEvents, setTimelineEvents] = useState<IncidentTimelineEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -79,36 +52,68 @@ export function DashboardPage() {
   }, []);
 
   const riskLevel = status?.riskLevel ?? 'LOW';
+
+  const postureStyles: Record<string, any> = {
+    LOW: {
+      label: t('status_normal', 'BÌNH THƯỜNG'),
+      bg: 'bg-emerald-50/80 border-emerald-100',
+      text: 'text-emerald-700',
+      sub: t('status_normal_desc', 'Hệ thống đang hoạt động an toàn'),
+      glow: ['0 0 0 rgba(16,185,129,0)', '0 0 16px rgba(16,185,129,0.15)', '0 0 0 rgba(16,185,129,0)']
+    },
+    MEDIUM: {
+      label: t('status_warning', 'CẢNH BÁO'),
+      bg: 'bg-amber-50/80 border-amber-100',
+      text: 'text-amber-700',
+      sub: t('status_warning_desc', 'Cảnh báo nguy cơ mức độ trung bình'),
+      glow: ['0 0 0 rgba(245,158,11,0)', '0 0 20px rgba(245,158,11,0.2)', '0 0 0 rgba(245,158,11,0)']
+    },
+    HIGH: {
+      label: t('status_danger', 'NGUY HIỂM'),
+      bg: 'bg-orange-50/80 border-orange-100',
+      text: 'text-orange-700',
+      sub: t('status_danger_desc', 'Phát hiện nguy cơ cháy nổ cao'),
+      glow: ['0 0 0 rgba(239,68,68,0)', '0 0 32px rgba(239,68,68,0.22)', '0 0 0 rgba(239,68,68,0)']
+    },
+    CRITICAL: {
+      label: t('status_critical', 'NGHIÊM TRỌNG'),
+      bg: 'bg-red-950/90 border-red-900',
+      text: 'text-red-200',
+      sub: t('status_critical_desc', 'NGUY HIỂM! Phát hiện cháy và người gặp nạn'),
+      glow: ['0 0 0 rgba(220,38,38,0)', '0 0 40px rgba(220,38,38,0.45)', '0 0 0 rgba(220,38,38,0)']
+    }
+  };
+
   const posture = postureStyles[riskLevel];
   const isDanger = riskLevel === 'HIGH' || riskLevel === 'CRITICAL';
 
   const dynamicMetrics = [
     { 
-      label: 'Fire Confidence', 
+      label: t('stat_fire_conf', 'Tỉ lệ Lửa (Fire Confidence)'), 
       value: status?.riskScore && status.riskLevel !== 'LOW' ? `${Math.round(status.riskScore)}%` : '0%', 
-      trend: status?.riskLevel !== 'LOW' ? 'hazard detected' : 'stable monitoring', 
+      trend: status?.riskLevel !== 'LOW' ? t('stat_hazard_detected', 'phát hiện nguy hiểm') : t('stat_stable', 'hoạt động ổn định'), 
       icon: Flame, 
       color: isDanger ? 'text-red-600' : 'text-slate-500', 
       bg: isDanger ? 'bg-red-50' : 'bg-slate-100' 
     },
     { 
-      label: 'Smoke Density', 
+      label: t('stat_smoke_dens', 'Mật độ Khói (Smoke Density)'), 
       value: riskLevel === 'CRITICAL' ? '82%' : riskLevel === 'HIGH' ? '65%' : riskLevel === 'MEDIUM' ? '25%' : '0%', 
-      trend: riskLevel !== 'LOW' ? 'moderate spread' : 'no smoke', 
+      trend: riskLevel !== 'LOW' ? t('stat_spread', 'lan toả') : t('stat_no_smoke', 'không có khói'), 
       icon: Cloud, 
       color: 'text-slate-600', 
       bg: 'bg-slate-100' 
     },
     { 
-      label: 'Humans Nearby', 
+      label: t('stat_human_nearby', 'Người xung quanh (Humans Nearby)'), 
       value: status?.humanAtRisk ? '01' : '00', 
-      trend: status?.humanAtRisk ? '1 at risk zone' : 'all clear', 
+      trend: status?.humanAtRisk ? t('stat_human_risk', '1 người vùng nguy hiểm') : t('stat_safe', 'an toàn'), 
       icon: Users, 
       color: status?.humanAtRisk ? 'text-amber-600' : 'text-slate-500', 
       bg: status?.humanAtRisk ? 'bg-amber-50' : 'bg-slate-100' 
     },
     { 
-      label: 'AI Latency', 
+      label: t('stat_ai_latency', 'Độ trễ AI (AI Latency)'), 
       value: status ? '31ms' : '--', 
       trend: 'realtime active', 
       icon: Activity, 
@@ -165,13 +170,13 @@ export function DashboardPage() {
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">
               <Radio size={14} />
-              PhoenixVision Command Center
+              PhoenixVision
             </div>
             <h1 className="mt-4 max-w-3xl text-4xl font-semibold tracking-tight text-slate-950">
-              AI Fire Early Warning Dashboard
+              {t('dash_title', 'Bảng Thống kê Cảnh báo cháy sớm AI')}
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-              Realtime surveillance, risk scoring, emergency state monitoring, and incident timeline for apartment and mini building safety teams.
+              {t('dash_subtitle', 'Giám sát theo thời gian thực, đánh giá mức độ rủi ro, theo dõi tình trạng khẩn cấp và xem lại lịch sử các sự kiện dành cho ban quản lý toà nhà.')}
             </p>
           </div>
           <div className="flex flex-col gap-3 items-end">
@@ -180,7 +185,7 @@ export function DashboardPage() {
               animate={{ boxShadow: posture.glow }}
               transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
             >
-              <p className={`text-xs font-semibold uppercase tracking-[0.16em] ${posture.text}`}>Current posture</p>
+              <p className={`text-xs font-semibold uppercase tracking-[0.16em] ${posture.text}`}>{t('dash_current_posture', 'Trạng thái hiện tại')}</p>
               <p className={`mt-1 text-3xl font-semibold ${posture.text}`}>{posture.label}</p>
               <p className={`mt-1 text-xs ${posture.text}`}>{posture.sub}</p>
             </motion.div>
@@ -192,7 +197,7 @@ export function DashboardPage() {
                 onClick={() => handleTriggerTest('CRITICAL')}
                 className="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-3 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-red-600/20 transition hover:bg-red-700 hover:-translate-y-0.5 active:scale-95 disabled:opacity-50"
               >
-                <Flame size={14} /> Test Alert
+                <Flame size={14} /> {t('dash_trigger_alert', 'Báo cháy')}
               </button>
               
               <button
@@ -201,7 +206,7 @@ export function DashboardPage() {
                 onClick={() => handleTriggerTest('LOW')}
                 className="inline-flex items-center gap-1.5 rounded-xl bg-slate-800 px-3 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-md transition hover:bg-slate-900 hover:-translate-y-0.5 active:scale-95 disabled:opacity-50"
               >
-                <ShieldAlert size={14} /> Reset Safe
+                <ShieldAlert size={14} /> {t('dash_reset_safe', 'Trở về An toàn')}
               </button>
             </div>
           </div>
@@ -224,13 +229,13 @@ export function DashboardPage() {
             <div>
               <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950">
                 <Camera size={20} className="text-cyan-600" />
-                Realtime Surveillance Feed
+                {t('dash_camera_feed', 'Dữ liệu Camera thời gian thực')}
               </h2>
-              <p className="text-sm text-slate-500">Camera A01 - Lobby Corridor</p>
+              <p className="text-sm text-slate-500">Camera A01 - Sảnh chính</p>
             </div>
             <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
               <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.9)]" />
-              {hasLiveFrame ? 'LIVE 12 FPS' : 'STANDBY DEMO'}
+              {hasLiveFrame ? t('dash_live', 'TRỰC TIẾP') : 'STANDBY DEMO'}
             </div>
           </div>
 
@@ -263,16 +268,16 @@ export function DashboardPage() {
             
             <div className={`absolute bottom-5 left-5 rounded-lg border border-white/15 bg-slate-950/80 px-4 py-3 text-white backdrop-blur shadow-lg`}>
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-200">
-                {status?.humanAtRisk ? 'DANGER ZONE' : 'SYSTEM STATUS'}
+                {status?.humanAtRisk ? t('dash_danger_zone', 'KHU VỰC NGUY HIỂM') : t('dash_sys_status', 'TRẠNG THÁI HỆ THỐNG')}
               </p>
               <p className="mt-1 text-sm font-semibold">
                 {status?.humanAtRisk 
-                  ? 'Human proximity risk detected' 
+                  ? t('dash_human_danger', 'Phát hiện có người trong khu vực cháy') 
                   : riskLevel === 'CRITICAL' 
-                  ? 'CRITICAL FIRE ESCALATION ACTIVE' 
+                  ? t('dash_fire_evacuate', 'CHÁY LỚN CẦN SƠ TÁN KHẨN CẤP') 
                   : riskLevel === 'HIGH' 
-                  ? 'High fire risk detected' 
-                  : 'Normal monitoring - All systems safe'}
+                  ? t('dash_high_risk', 'Phát hiện nguy cơ cháy nổ cao') 
+                  : t('dash_normal', 'Hoạt động bình thường - An toàn')}
               </p>
             </div>
           </div>
@@ -286,19 +291,19 @@ export function DashboardPage() {
 
       <motion.section variants={variants} className="grid gap-6 lg:grid-cols-3">
         <AlertCard 
-          title="Emergency Alerts" 
+          title={t('dash_alerts_title', 'Thông báo Khẩn cấp')} 
           value={status?.escalationCount ? String(status.escalationCount).padStart(2, '0') : '00'} 
           icon={Siren} 
           tone={isDanger ? 'red' : 'cyan'} 
-          description={isDanger ? 'Active escalations waiting for operator acknowledgement.' : 'No active alerts.'} 
+          description={isDanger ? t('dash_alerts_desc_danger', 'Có các cảnh báo chưa được xử lý.') : t('dash_alerts_desc_safe', 'Không có báo động mới.')} 
         />
-        <AlertCard title="Snapshot Evidence" value={status?.snapshotUrl ? '01' : '00'} icon={Camera} tone="cyan" description="Auto-captured frames attached to risk and emergency events." />
+        <AlertCard title={t('dash_evidence_title', 'Bằng chứng Camera')} value={status?.snapshotUrl ? '01' : '00'} icon={Camera} tone="cyan" description={t('dash_evidence_desc', 'Hình ảnh tự động cắt từ camera giám sát.')} />
         <AlertCard 
-          title="System Integrity" 
+          title={t('dash_integrity_title', 'Hoạt động hệ thống')} 
           value={status ? '99.9%' : 'OFFLINE'} 
           icon={ShieldAlert} 
           tone={status ? 'emerald' : 'red'} 
-          description={status ? 'Camera stream, backend API, and AI service are operational.' : 'Backend connection offline.'} 
+          description={status ? t('dash_integrity_desc_on', 'Camera stream, Server và hệ thống AI vẫn đang hoạt động tốt.') : t('dash_integrity_desc_off', 'Đã mất kết nối server.')} 
         />
       </motion.section>
       
@@ -333,34 +338,36 @@ function MetricCard({ label, value, trend, icon: Icon, color, bg }: MetricCardPr
 }
 
 function RiskGauge({ score, riskLevel, humanAtRisk }: { score: number; riskLevel: string; humanAtRisk?: boolean }) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-2xl border border-white/80 bg-white/80 p-5 shadow-sm backdrop-blur-xl">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-950">Dynamic Risk</h2>
-          <p className="text-sm text-slate-500">Score uses area, duration, proximity, and consistency.</p>
+          <h2 className="text-lg font-semibold text-slate-950">{t('dash_risk_gauge_title', 'Biểu đồ rủi ro')}</h2>
+          <p className="text-sm text-slate-500">{t('dash_risk_gauge_desc', 'Đánh giá dựa trên diện tích, thời lượng và số người.')}</p>
         </div>
         <AlertTriangle className={riskLevel !== 'LOW' ? 'text-red-500 animate-pulse' : 'text-slate-400'} size={22} />
       </div>
       <RiskPulseRing score={Math.round(score)} />
       <div className="mt-5 grid grid-cols-3 gap-2 text-center text-xs">
         <div className={`rounded-lg p-2 ${riskLevel !== 'LOW' ? 'bg-red-50 text-red-700 font-semibold' : 'bg-slate-50 text-slate-500'}`}>
-          Fire {score > 0 ? `${Math.round(score)}%` : '0%'}
+          {t('stat_fire', 'Lửa')} {score > 0 ? `${Math.round(score)}%` : '0%'}
         </div>
         <div className={`rounded-lg p-2 ${humanAtRisk ? 'bg-amber-50 text-amber-700 font-semibold animate-pulse' : 'bg-slate-50 text-slate-500'}`}>
-          Human {humanAtRisk ? '1' : '0'}
+          {t('stat_human', 'Người')} {humanAtRisk ? '1' : '0'}
         </div>
-        <div className="rounded-lg bg-cyan-50 p-2 text-cyan-700">Stable 91%</div>
+        <div className="rounded-lg bg-cyan-50 p-2 text-cyan-700">{t('stat_consistency', 'Ổn định')} 91%</div>
       </div>
     </div>
   );
 }
 
 function IncidentMiniTimeline({ events }: { events: IncidentTimelineEvent[] }) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-2xl border border-white/80 bg-white/80 p-5 shadow-sm backdrop-blur-xl">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-950">Live Timeline</h2>
+        <h2 className="text-lg font-semibold text-slate-950">{t('dash_timeline_title', 'Dòng sự kiện')}</h2>
         <span className="rounded-full bg-cyan-50 px-2 py-1 text-xs font-semibold text-cyan-700">realtime</span>
       </div>
       <div className="space-y-3">
@@ -383,7 +390,7 @@ function IncidentMiniTimeline({ events }: { events: IncidentTimelineEvent[] }) {
             );
           })
         ) : (
-          <p className="text-sm text-slate-500 py-4 text-center">Chưa có sự kiện timeline nào được ghi nhận.</p>
+          <p className="text-sm text-slate-500 py-4 text-center">{t('dash_timeline_empty', 'Chưa có sự kiện timeline nào được ghi nhận.')}</p>
         )}
       </div>
     </div>
