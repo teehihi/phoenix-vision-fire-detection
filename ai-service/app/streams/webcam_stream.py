@@ -71,6 +71,10 @@ class WebcamStream:
         )
 
     def _open_url_capture(self) -> cv2.VideoCapture:
+        import os
+        # Ép dùng TCP thay vì UDP để chống nhiễu/timeout khi stream RTSP trong nội mạng/Docker
+        os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp|analyzeduration;500000|probesize;500000"
+
         errors: list[str] = []
 
         for backend_name, backend_id in [("FFmpeg", cv2.CAP_FFMPEG), ("Any", cv2.CAP_ANY)]:

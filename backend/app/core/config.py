@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     firebase_service_account_path: str = ""
     firebase_service_account_json: str = ""
     data_retention_days: int = 30
+    esp32_base_url: str = ""
 
     model_config = SettingsConfigDict(env_file=BACKEND_ROOT / ".env", env_file_encoding="utf-8", extra="ignore")
 
