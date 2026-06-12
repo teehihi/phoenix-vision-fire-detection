@@ -3,7 +3,7 @@ import { AppLayout } from '../components/layout/AppLayout';
 import { AlertsPage } from '../features/alerts/AlertsPage';
 import { AuthPage } from '../features/auth/AuthPage';
 import { ProtectedRoute } from '../features/auth/ProtectedRoute';
-import { DashboardPage } from '../features/dashboard/DashboardPage';
+import { StatisticsPage } from '../features/statistics/StatisticsPage';
 import { CameraMonitoringProvider } from '../features/detection/CameraMonitoringContext';
 import { LiveDetectionPage } from '../features/detection/LiveDetectionPage';
 import { HistoryPage } from '../features/history/HistoryPage';
@@ -19,7 +19,7 @@ export function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route element={<CameraMonitoringProvider><AppLayout /></CameraMonitoringProvider>}>
           <Route index element={<LiveDetectionPage />} />
-          <Route path="/statistics" element={<DashboardPage />} />
+          <Route path="/statistics" element={<StatisticsPage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/alerts" element={<AlertsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
