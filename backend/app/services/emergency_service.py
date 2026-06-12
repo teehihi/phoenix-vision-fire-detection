@@ -1,4 +1,6 @@
 from datetime import datetime
+import asyncio
+import logging
 
 from app.db.storage import store_snapshot
 from app.models.emergency import EmergencyEvent, EmergencyState, EmergencyStatus
@@ -6,6 +8,10 @@ from app.repositories.emergency_repository import EmergencyRepository
 from app.repositories.incident_timeline_repository import incident_timeline_repository
 from app.schemas.emergency import EmergencyEventCreate
 from app.services.incident_timeline_service import IncidentTimelineService
+from app.services.esp32_client import esp32_client
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class EmergencyService:
@@ -107,7 +113,43 @@ class EmergencyService:
                 "last_transition_at": now,
             }
         )
+
+        # Trigger ESP32 alarm/pump based on state transitions
+        if next_state != current.state:
+            try:
+                loop = asyncio.get_event_loop()
+                if next_state == EmergencyState.critical:
+                    # Critical: Alarm ON + Pump ON immediately
+                    if loop.is_running():
+                        loop.create_task(esp32_client.trigger_alarm())
+                        loop.create_task(esp32_client.trigger_pump(True))
+                    else:
+                        loop.run_until_complete(esp32_client.trigger_alarm())
+                        loop.run_until_complete(esp32_client.trigger_pump(True))
+                elif next_state in [EmergencyState.warning, EmergencyState.emergency]:
+                    # Warning/Emergency: Alarm ON only (Pump OFF initially)
+                    if loop.is_running():
+                        loop.create_task(esp32_client.trigger_alarm())
+                        loop.create_task(esp32_client.trigger_pump(False))
+                    else:
+                        loop.run_until_complete(esp32_client.trigger_alarm())
+                        loop.run_until_complete(esp32_client.trigger_pump(False))
+                    
+                    # Schedule automatic pump trigger after delay
+                    delay = settings.esp32_auto_pump_delay_seconds
+                    if loop.is_running():
+                        loop.create_task(self._schedule_auto_pump(user_id, event.id, delay))
+                elif next_state == EmergencyState.monitoring:
+                    # Reset: Alarm OFF + Pump OFF
+                    if loop.is_running():
+                        loop.create_task(esp32_client.stop_alarm())
+                    else:
+                        loop.run_until_complete(esp32_client.stop_alarm())
+            except Exception as e:
+                logger.error(f"Failed to control ESP32 on state change: {e}")
+
         return self.repository.save_status(user_id, updated)
+
 
     def acknowledge(self, user_id: str, event_id: str) -> EmergencyEvent | None:
         event = self.repository.find_event(user_id, event_id)
@@ -188,6 +230,16 @@ class EmergencyService:
                 }
             )
         )
+        # Turn off ESP32 alarm/pump on resolve
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                loop.create_task(esp32_client.stop_alarm())
+            else:
+                loop.run_until_complete(esp32_client.stop_alarm())
+        except Exception as e:
+            logger.error(f"Failed to stop ESP32 alarm on resolve: {e}")
+
         return event
 
     @staticmethod
@@ -220,3 +272,47 @@ class EmergencyService:
         if state == EmergencyState.warning:
             return "Fire or smoke risk detected. Continue monitoring."
         return "Monitoring normal."
+
+    async def _schedule_auto_pump(self, user_id: str, event_id: str, delay_seconds: int):
+        logger.info(f"Scheduled auto-pump check for event {event_id} in {delay_seconds} seconds")
+        await asyncio.sleep(delay_seconds)
+        
+        # Check if the event is still active and unacknowledged
+        event = self.repository.find_event(user_id, event_id)
+        if not event:
+            return
+            
+        if event.acknowledged_at is None and event.resolved_at is None:
+            # Check if this event is still the active event for the camera
+            status = self.repository.get_status(user_id, event.camera_id)
+            if status.active_event_id == event_id and status.state in [EmergencyState.warning, EmergencyState.emergency]:
+                logger.warning(f"Event {event_id} remains unacknowledged after {delay_seconds} seconds. Automatically activating pump!")
+                try:
+                    await esp32_client.trigger_pump(True)
+                    
+                    # Log this automatic action in the timeline!
+                    from app.models.incident_timeline import IncidentEventType, IncidentRiskLevel
+                    from app.schemas.incident_timeline import IncidentTimelineEventCreate
+                    
+                    self.timeline_service.create_event(
+                        user_id,
+                        IncidentTimelineEventCreate(
+                            camera_id=event.camera_id,
+                            event_type=IncidentEventType.operator_action,
+                            title="Tự động kích hoạt bơm",
+                            description=f"Hệ thống tự động bật bơm nước dập lửa sau {delay_seconds} giây sự cố không có người phản ứng.",
+                            risk_level=IncidentRiskLevel(event.risk_level.upper()),
+                            risk_score=event.risk_score,
+                            human_at_risk=event.human_at_risk,
+                            humans_nearby_count=1 if event.human_at_risk else 0,
+                            snapshot_url=event.snapshot_url,
+                            metadata={
+                                "emergencyEventId": event.id,
+                                "action": "auto_pump",
+                                "operator": "system_auto"
+                            }
+                        )
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to automatically turn on ESP32 pump: {e}")
+

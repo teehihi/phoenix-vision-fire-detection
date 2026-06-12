@@ -11,26 +11,31 @@ const volumeByState: Record<EmergencyState, number> = {
 
 export function useEmergencyTone(state: EmergencyState, enabled: boolean) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const wasAudibleRef = useRef(false);
 
   useEffect(() => {
     audioRef.current ??= new Audio(publicAsset('alert.mp3'));
     const audio = audioRef.current;
     audio.loop = true;
+  }, []);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
 
     if (!enabled || state === 'monitoring') {
       audio.pause();
       audio.currentTime = 0;
+      wasAudibleRef.current = false;
       return;
     }
 
     audio.volume = volumeByState[state];
-    audio.play().catch(() => {
-      // Electron/browser may require one user interaction before audio playback.
-    });
-
-    return () => {
-      audio.pause();
-      audio.currentTime = 0;
-    };
+    if (!wasAudibleRef.current || audio.paused) {
+      wasAudibleRef.current = true;
+      audio.play().catch(() => {
+        // Electron/browser may require one user interaction before audio playback.
+      });
+    }
   }, [enabled, state]);
 }

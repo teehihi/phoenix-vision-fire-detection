@@ -61,6 +61,12 @@ const riskPriority: Record<RealtimeRiskPayload['riskLevel'], number> = {
   HIGH: 2,
   CRITICAL: 3
 };
+const emergencyStatePriority: Record<EmergencyState, number> = {
+  monitoring: 0,
+  warning: 1,
+  emergency: 2,
+  critical: 3
+};
 
 export function CameraMonitoringProvider({ children }: { children: ReactNode }) {
   const {
@@ -78,6 +84,7 @@ export function CameraMonitoringProvider({ children }: { children: ReactNode }) 
   const [toasts, setToasts] = useState<MonitoringToast[]>([]);
   const lastRiskLevelByCamera = useRef<Record<string, RealtimeRiskPayload['riskLevel']>>({});
   const dismissedRiskLevelByCamera = useRef<Record<string, RealtimeRiskPayload['riskLevel']>>({});
+  const lastNotifiedStateByCamera = useRef<Record<string, EmergencyState>>({});
   const cameraNames = useMemo(
     () => Object.fromEntries(registryCameras.map((camera) => [camera.id, camera.name])),
     [registryCameras]
@@ -93,17 +100,21 @@ export function CameraMonitoringProvider({ children }: { children: ReactNode }) 
 
   const publishRiskNotification = useCallback((frame: ProcessedFrameMessage) => {
     const riskLevel = frame.risk.riskLevel;
-    const previousRiskLevel = lastRiskLevelByCamera.current[frame.cameraId] ?? 'LOW';
     lastRiskLevelByCamera.current[frame.cameraId] = riskLevel;
     const existingToastId = frame.cameraId;
 
     if (riskLevel === 'LOW') {
       delete dismissedRiskLevelByCamera.current[frame.cameraId];
+      delete lastNotifiedStateByCamera.current[frame.cameraId];
       setToasts((current) => current.filter((toast) => toast.id !== existingToastId));
       return;
     }
 
-    if (riskLevel !== previousRiskLevel) {
+    const state = riskToEmergencyState(riskLevel);
+    const previousNotifiedState = lastNotifiedStateByCamera.current[frame.cameraId] ?? 'monitoring';
+    const isEscalating = emergencyStatePriority[state] > emergencyStatePriority[previousNotifiedState];
+
+    if (isEscalating) {
       delete dismissedRiskLevelByCamera.current[frame.cameraId];
     }
     if (dismissedRiskLevelByCamera.current[frame.cameraId] === riskLevel) {
@@ -118,7 +129,7 @@ export function CameraMonitoringProvider({ children }: { children: ReactNode }) 
         return [...current.slice(-3), toast];
       }
       const existing = current[existingIndex];
-      if (existing.body === toast.body && existing.state === toast.state) {
+      if (existing.state === toast.state) {
         return current;
       }
       const next = [...current];
@@ -126,7 +137,11 @@ export function CameraMonitoringProvider({ children }: { children: ReactNode }) 
       return next;
     });
 
-    if (riskLevel !== previousRiskLevel && 'Notification' in window && Notification.permission === 'granted') {
+    if (isEscalating) {
+      lastNotifiedStateByCamera.current[frame.cameraId] = state;
+    }
+
+    if (isEscalating && 'Notification' in window && Notification.permission === 'granted') {
       new Notification(toast.title, {
         body: toast.body,
         requireInteraction: riskLevel === 'HIGH' || riskLevel === 'CRITICAL',
@@ -260,7 +275,7 @@ function createRiskToast(frame: ProcessedFrameMessage, cameraLabel: string): Mon
     : riskLevel === 'HIGH'
       ? 'PHÁT HIỆN NGUY CƠ CHÁY CAO'
       : 'CẢNH BÁO NGUY CƠ';
-  const body = `${cameraLabel}: ${frame.risk.status} - Risk ${Math.round(frame.risk.riskScore)}/100`;
+  const body = `${cameraLabel}: ${getRiskMessage(riskLevel, frame.risk.humanAtRisk)} Risk ${Math.round(frame.risk.riskScore)}/100`;
 
   return {
     id: frame.cameraId,
@@ -272,6 +287,12 @@ function createRiskToast(frame: ProcessedFrameMessage, cameraLabel: string): Mon
     riskLevel,
     riskScore: Math.round(frame.risk.riskScore)
   };
+}
+
+function getRiskMessage(riskLevel: RealtimeRiskPayload['riskLevel'], humanAtRisk: boolean) {
+  if (riskLevel === 'CRITICAL') return 'Sự cố khẩn cấp đang diễn ra.';
+  if (riskLevel === 'HIGH') return humanAtRisk ? 'Có người trong vùng nguy hiểm.' : 'Nguy cơ cháy cao đang được theo dõi.';
+  return 'Có dấu hiệu bất thường, tiếp tục giám sát.';
 }
 
 function riskToEmergencyState(riskLevel: RealtimeRiskPayload['riskLevel']): EmergencyState {

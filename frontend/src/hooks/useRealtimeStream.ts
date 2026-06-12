@@ -7,6 +7,13 @@ export type ConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnectin
 
 const streamPath = '/api/stream/webcam?fps=12&quality=72';
 const defaultStreamUrl = normalizeStreamUrl(import.meta.env.VITE_AI_STREAM_URL);
+const riskPriority: Record<ProcessedFrameMessage['risk']['riskLevel'], number> = {
+  LOW: 0,
+  MEDIUM: 1,
+  HIGH: 2,
+  CRITICAL: 3
+};
+const incidentResetDelayMs = 10000;
 
 export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) {
   const [frame, setFrame] = useState<ProcessedFrameMessage | null>(null);
@@ -18,9 +25,10 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
   const connectTimer = useRef<number | null>(null);
   const frameWatchdogTimer = useRef<number | null>(null);
   const lastFrameAtRef = useRef(0);
-  const lastSyncRiskLevelRef = useRef<string>('LOW');
   const pendingSyncRiskLevelRef = useRef<string | null>(null);
   const lastSyncAttemptAtRef = useRef(0);
+  const lastSyncedRiskPriorityRef = useRef(0);
+  const lowRiskSinceRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!enabled) {
@@ -76,11 +84,22 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
 
           const risk = frameMsg.risk;
           const currentRiskLevel = risk.riskLevel;
-          const levelChanged = currentRiskLevel !== lastSyncRiskLevelRef.current;
+          const currentRiskPriority = riskPriority[currentRiskLevel];
           const canRetrySync = Date.now() - lastSyncAttemptAtRef.current >= 3000;
 
+          if (currentRiskLevel === 'LOW') {
+            lowRiskSinceRef.current ??= Date.now();
+            if (Date.now() - lowRiskSinceRef.current >= incidentResetDelayMs) {
+              lastSyncedRiskPriorityRef.current = 0;
+              pendingSyncRiskLevelRef.current = null;
+            }
+            return;
+          }
+
+          lowRiskSinceRef.current = null;
+
           if (
-            levelChanged
+            currentRiskPriority > lastSyncedRiskPriorityRef.current
             && auth.currentUser
             && pendingSyncRiskLevelRef.current !== currentRiskLevel
             && canRetrySync
@@ -95,7 +114,7 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
               message: `Hệ thống tự động phát hiện cảnh báo nguy cơ: ${risk.status}`,
               snapshotUrl: `data:image/jpeg;base64,${frameMsg.frame}`
             }).then(() => {
-              lastSyncRiskLevelRef.current = currentRiskLevel;
+              lastSyncedRiskPriorityRef.current = Math.max(lastSyncedRiskPriorityRef.current, currentRiskPriority);
             }).catch(() => {
               // Retry on a later frame after the cooldown.
             }).finally(() => {

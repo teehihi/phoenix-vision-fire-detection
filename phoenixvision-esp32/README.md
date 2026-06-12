@@ -26,6 +26,7 @@ Sau đó mở `src/main/secrets.h` và thay hai giá trị:
 ```cpp
 const char* WIFI_SSID = "TÊN_WIFI";
 const char* WIFI_PASSWORD = "MẬT_KHẨU_WIFI";
+const char* BACKEND_REGISTER_URL = "http://IP_BACKEND:8000/api/v1/iot/register";
 ```
 
 Repo chỉ lưu `secrets.example.h` để người khác có thể tạo cấu hình riêng. Bạn không cần sửa lại mã nguồn trước mỗi lần commit hoặc push.
@@ -45,19 +46,31 @@ Repo chỉ lưu `secrets.example.h` để người khác có thể tạo cấu h
 8. Chọn `Upload`.
 9. Mở `Serial Monitor` và đặt baud rate `115200`.
 
-Sau khi kết nối thành công, Serial Monitor sẽ hiển thị:
+Sau khi kết nối thành công, Serial Monitor sẽ hiển thị thời gian kết nối, IP hiện tại, RSSI và kết quả đăng ký backend:
 
 ```text
-[INFO] Đã kết nối WiFi
-[INFO] Địa chỉ IP ESP32: 192.168.x.x
-[INFO] HTTP Server đã khởi động tại port 80
+[INFO] HTTP Server started on port 80
+[INFO] WiFi connecting to SSID: ...
+[INFO] WiFi connected in 6421 ms
+[INFO] IP ESP32: 192.168.x.x
+[INFO] RSSI: -54 dBm
+[INFO] mDNS started: http://phoenixvision.local/status
+[INFO] Backend registered ESP32 at http://192.168.x.x, RSSI -54 dBm
 ```
 
 Máy tính và ESP32 phải kết nối cùng mạng WiFi.
 
+Firmware không còn block trong lúc chờ WiFi. Nếu iPhone hotspot biến mất rồi xuất hiện lại, ESP32 sẽ tự reconnect theo exponential backoff và tự đăng ký lại IP với backend.
+
 ## API
 
-Thay `IP_ESP32` bằng địa chỉ được in trong Serial Monitor.
+Ưu tiên dùng mDNS nếu máy backend hỗ trợ `.local`:
+
+```text
+http://phoenixvision.local/status
+```
+
+Nếu mDNS không ổn trên mạng hiện tại, dùng IP được in trong Serial Monitor hoặc để ESP32 tự đăng ký IP với backend qua `BACKEND_REGISTER_URL`.
 
 ### Kiểm tra trạng thái
 
@@ -68,8 +81,12 @@ GET http://IP_ESP32/status
 ```json
 {
   "device": "PhoenixVision-ESP32",
+  "firmware": "1.1.0",
   "online": true,
-  "alarm": false
+  "alarm": false,
+  "ip": "192.168.x.x",
+  "rssi": -54,
+  "uptimeMs": 12345
 }
 ```
 

@@ -72,4 +72,9 @@ class Esp32Client:
         """Stop the alarm on the ESP32."""
         return await self._request("GET", "/stop")
 
+    async def trigger_pump(self, on: bool) -> Dict[str, Any]:
+        """Turn the pump ON or OFF on the ESP32."""
+        endpoint = "/pump/on" if on else "/pump/off"
+        return await self._request("GET", endpoint)
+
 esp32_client = Esp32Client()

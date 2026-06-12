@@ -1,10 +1,11 @@
-import { Bell, BellOff, Cpu, LoaderCircle, Wifi, WifiOff } from 'lucide-react';
+import { Bell, BellOff, Cpu, Droplet, LoaderCircle, Wifi, WifiOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { getIotStatus, stopIotAlarm, triggerIotAlarm } from '../../lib/apiClient';
+import { getIotStatus, stopIotAlarm, triggerIotAlarm, turnOffPump, turnOnPump } from '../../lib/apiClient';
 
 type IotStatus = {
   online: boolean;
   alarm: boolean;
+  pump: boolean;
 };
 
 export function IoTDeviceStatus() {
@@ -58,8 +59,27 @@ export function IoTDeviceStatus() {
   async function handleStopAlarm() {
     setActionLoading(true);
     try {
-      const data = await stopIotAlarm();
-      setStatus((prev) => prev ? { ...prev, alarm: data.alarm } : null);
+      await stopIotAlarm();
+      setStatus((prev) => prev ? { ...prev, alarm: false, pump: false } : null);
+    } catch {
+      // Ignore
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleTogglePump() {
+    if (!status) return;
+    const isPumpActive = status.pump ?? false;
+    setActionLoading(true);
+    try {
+      if (isPumpActive) {
+        const data = await turnOffPump();
+        setStatus((prev) => prev ? { ...prev, pump: data.pump } : null);
+      } else {
+        const data = await turnOnPump();
+        setStatus((prev) => prev ? { ...prev, pump: data.pump } : null);
+      }
     } catch {
       // Ignore
     } finally {
@@ -69,6 +89,7 @@ export function IoTDeviceStatus() {
 
   const isOnline = status?.online ?? false;
   const isAlarming = status?.alarm ?? false;
+  const isPumpActive = status?.pump ?? false;
 
   return (
     <div className="flex h-11 items-center justify-between gap-3 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:border-slate-300">
@@ -122,12 +143,26 @@ export function IoTDeviceStatus() {
             {actionLoading && !isAlarming ? <LoaderCircle size={12} className="animate-spin" /> : <Bell size={12} />}
             Test Còi
           </button>
+          
+          <button
+            onClick={handleTogglePump}
+            disabled={!isOnline || actionLoading}
+            className={`inline-flex h-7 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+              isPumpActive 
+                ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
+                : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+            }`}
+          >
+            {actionLoading && isPumpActive ? <LoaderCircle size={12} className="animate-spin" /> : <Droplet size={12} />}
+            {isPumpActive ? 'Tắt Bơm' : 'Bật Bơm'}
+          </button>
+
           <button
             onClick={handleStopAlarm}
             disabled={!isOnline || actionLoading}
             className="inline-flex h-7 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {actionLoading && isAlarming ? <LoaderCircle size={12} className="animate-spin" /> : <BellOff size={12} />}
+            {actionLoading && (isAlarming || isPumpActive) ? <LoaderCircle size={12} className="animate-spin" /> : <BellOff size={12} />}
             Tắt
           </button>
         </div>

@@ -2,22 +2,18 @@ import { motion } from 'framer-motion';
 import {
   Activity,
   AlertTriangle,
-  Camera,
   CheckCircle2,
   Clock3,
   Cloud,
   Flame,
-  Radio,
   RefreshCw,
   ShieldCheck,
   Siren,
-  Users,
-  Wifi
+  Users
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { getEmergencyStatus, getIncidentTimeline, triggerMockEmergency } from '../../lib/apiClient';
 import type { EmergencyStatus, IncidentTimelineEvent } from '../../types/detection';
-import { useCameraMonitoring } from '../detection/CameraMonitoringContext';
 
 const riskMeta = {
   LOW: {
@@ -58,7 +54,6 @@ export function StatisticsPage() {
   const [error, setError] = useState<string | null>(null);
   const [testLoading, setTestLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const { primaryStream } = useCameraMonitoring();
 
   async function loadData() {
     try {
@@ -84,9 +79,6 @@ export function StatisticsPage() {
   const riskLevel = (status?.riskLevel ?? 'LOW') as RiskLevel;
   const currentRisk = riskMeta[riskLevel];
   const isDanger = riskLevel === 'HIGH' || riskLevel === 'CRITICAL';
-  const hasLiveFrame = Boolean(primaryStream.frame && primaryStream.state === 'connected');
-  const imageSrc = hasLiveFrame ? `data:image/jpeg;base64,${primaryStream.frame!.frame}` : null;
-  const fps = primaryStream.frame?.fps ? Math.round(primaryStream.frame.fps) : 0;
   const smokeDensity = riskLevel === 'CRITICAL' ? 82 : riskLevel === 'HIGH' ? 65 : riskLevel === 'MEDIUM' ? 25 : 0;
 
   const hourlyData = useMemo(() => buildHourlyData(timelineEvents), [timelineEvents]);
@@ -122,12 +114,12 @@ export function StatisticsPage() {
       tone: status?.humanAtRisk ? 'text-red-600 bg-red-50' : 'text-blue-600 bg-blue-50'
     },
     {
-      label: 'Luồng phân tích',
-      value: fps ? `${fps}` : '--',
-      unit: 'FPS',
-      note: hasLiveFrame ? 'Đang trực tuyến' : 'Chờ tín hiệu',
-      icon: Wifi,
-      tone: hasLiveFrame ? 'text-blue-600 bg-blue-50' : 'text-slate-500 bg-slate-100'
+      label: 'Sự kiện 12 giờ gần nhất',
+      value: `${hourlyData.reduce((sum, item) => sum + item.value, 0)}`,
+      unit: 'event',
+      note: `${timelineEvents.length} bản ghi`,
+      icon: Clock3,
+      tone: timelineEvents.length ? 'text-blue-600 bg-blue-50' : 'text-slate-500 bg-slate-100'
     }
   ];
 
@@ -211,7 +203,6 @@ export function StatisticsPage() {
         </div>
         <div className="flex gap-5 text-xs">
           <StatusItem label="API" active={Boolean(status)} />
-          <StatusItem label="Camera A01" active={hasLiveFrame} />
           <StatusItem label="AI Engine" active={Boolean(status)} />
         </div>
       </section>
@@ -285,40 +276,8 @@ export function StatisticsPage() {
         </Panel>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.8fr)]">
-        <Panel className="overflow-hidden p-0">
-          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-            <div>
-              <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                <Camera size={17} className="text-slate-500" />
-                Camera A01
-              </h2>
-              <p className="mt-0.5 text-xs text-slate-500">Sảnh chính · Nguồn phân tích ưu tiên</p>
-            </div>
-            <span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-[11px] font-semibold ${hasLiveFrame ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${hasLiveFrame ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-              {hasLiveFrame ? 'TRỰC TUYẾN' : 'CHỜ TÍN HIỆU'}
-            </span>
-          </div>
-          <div className="relative aspect-video bg-slate-950">
-            {imageSrc ? (
-              <img src={imageSrc} alt="Luồng trực tiếp Camera A01" className="h-full w-full object-cover" />
-            ) : (
-              <div className="absolute inset-0 grid place-items-center text-center">
-                <div>
-                  <Camera className="mx-auto text-slate-600" size={36} />
-                  <p className="mt-3 text-sm font-medium text-slate-300">Chưa nhận được khung hình</p>
-                  <p className="mt-1 text-xs text-slate-500">Kiểm tra kết nối camera trong trang Quản lý Camera</p>
-                </div>
-              </div>
-            )}
-            <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between bg-gradient-to-t from-slate-950/90 to-transparent px-4 pb-3 pt-10 text-[11px] text-white">
-              <span className="flex items-center gap-2"><Radio size={13} /> YOLO realtime analysis</span>
-              <span>{fps ? `${fps} FPS` : '-- FPS'}</span>
-            </div>
-          </div>
-        </Panel>
-
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
+        <IncidentSummary events={timelineEvents} status={status} />
         <Panel>
           <PanelHeader
             title="Nhật ký gần đây"
@@ -367,10 +326,10 @@ export function StatisticsPage() {
           healthy={!isDanger}
         />
         <HealthItem
-          icon={Camera}
-          title="Bằng chứng hình ảnh"
-          value={status?.snapshotUrl ? '01' : '00'}
-          description={status?.snapshotUrl ? 'Đã lưu ảnh từ sự kiện gần nhất' : 'Chưa có ảnh sự kiện mới'}
+          icon={Clock3}
+          title="Cập nhật gần nhất"
+          value={lastUpdated ? formatTime(lastUpdated) : '--:--'}
+          description="Số liệu thống kê tự làm mới mỗi 5 giây"
           healthy
         />
       </section>
@@ -382,6 +341,54 @@ export function StatisticsPage() {
         </div>
       ) : null}
     </motion.div>
+  );
+}
+
+function IncidentSummary({ events, status }: { events: IncidentTimelineEvent[]; status: EmergencyStatus | null }) {
+  const operatorActions = events.filter((event) => event.eventType === 'operator_action').length;
+  const humanRiskEvents = events.filter((event) => event.humanAtRisk).length;
+  const lastEvent = events[0];
+
+  return (
+    <Panel>
+      <PanelHeader
+        title="Tóm tắt vận hành"
+        description="Dành cho phần thống kê, không hiển thị live camera"
+        aside={<ShieldCheck size={17} className="text-slate-400" />}
+      />
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <SummaryTile label="Incident đang mở" value={status?.activeEventId ? '01' : '00'} />
+        <SummaryTile label="Thao tác vận hành" value={String(operatorActions).padStart(2, '0')} />
+        <SummaryTile label="Có người trong vùng nguy hiểm" value={String(humanRiskEvents).padStart(2, '0')} />
+      </div>
+      <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Sự kiện mới nhất</p>
+        {lastEvent ? (
+          <>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${riskMeta[lastEvent.riskLevel].dot}`} />
+              <p className="text-sm font-semibold text-slate-900">{lastEvent.title}</p>
+              <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${riskMeta[lastEvent.riskLevel].badge}`}>
+                {riskMeta[lastEvent.riskLevel].label}
+              </span>
+            </div>
+            <p className="mt-2 text-sm leading-6 text-slate-500">{lastEvent.description}</p>
+            <p className="mt-3 text-xs text-slate-400">{new Date(lastEvent.createdAt).toLocaleString('vi-VN')}</p>
+          </>
+        ) : (
+          <p className="mt-3 text-sm text-slate-500">Chưa có incident nào được ghi nhận.</p>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
+function SummaryTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
+      <p className="text-[11px] font-medium text-slate-500">{label}</p>
+      <p className="mt-2 text-xl font-semibold tabular-nums text-slate-950">{value}</p>
+    </div>
   );
 }
 

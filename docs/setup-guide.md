@@ -102,6 +102,36 @@ gcloud storage buckets update gs://phoenixvision-2105.firebasestorage.app \
 
 Nếu đổi `DATA_RETENTION_DAYS`, cập nhật cả giá trị `age` trong `storage-lifecycle.json`.
 
+### ESP32 IoT
+
+Backend không để frontend gọi trực tiếp ESP32. Thay vào đó backend chạy health check nền mỗi 5 giây, cache trạng thái và chỉ chuyển `offline` sau nhiều lần lỗi liên tiếp.
+
+Có hai cách cấu hình địa chỉ ESP32:
+
+```env
+# Cách 1: mDNS
+ESP32_BASE_URL=http://phoenixvision.local
+
+# Cách 2: ESP32 tự đăng ký IP khi boot/reconnect
+# ESP32_BASE_URL=
+```
+
+Nếu dùng cách 2, trong `phoenixvision-esp32/src/main/secrets.h` đặt:
+
+```cpp
+const char* BACKEND_REGISTER_URL = "http://IP_BACKEND:8000/api/v1/iot/register";
+```
+
+Các tham số timeout/backoff mặc định:
+
+```env
+ESP32_REQUEST_TIMEOUT_SECONDS=2.5
+ESP32_HEALTH_INTERVAL_SECONDS=5
+ESP32_OFFLINE_FAILURE_THRESHOLD=3
+ESP32_CIRCUIT_FAILURE_THRESHOLD=4
+ESP32_CIRCUIT_COOLDOWN_SECONDS=15
+```
+
 ```bash
 cd backend
 python3 -m venv .venv
