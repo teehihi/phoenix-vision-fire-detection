@@ -14,6 +14,7 @@ const riskPriority: Record<ProcessedFrameMessage['risk']['riskLevel'], number> =
   CRITICAL: 3
 };
 const incidentResetDelayMs = 10000;
+const streamIdleTimeoutMs = 10000;
 
 export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) {
   const [frame, setFrame] = useState<ProcessedFrameMessage | null>(null);
@@ -155,7 +156,7 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
       if (
         socketRef.current?.readyState === WebSocket.OPEN
         && lastFrameAtRef.current
-        && Date.now() - lastFrameAtRef.current > 2500
+        && Date.now() - lastFrameAtRef.current > streamIdleTimeoutMs
       ) {
         setFrame(null);
         setState('reconnecting');
@@ -184,16 +185,15 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
 
 export function buildCameraStreamUrl(camera: { id: string; source: string; streamUrl?: string }) {
   const rawStreamUrl = camera.streamUrl?.trim();
-  if (!rawStreamUrl) {
-    return defaultStreamUrl;
-  }
-
   const url = new URL(defaultStreamUrl);
   url.searchParams.set('camera_id', camera.id);
 
   if (camera.source === 'webcam') {
-    url.searchParams.set('camera', rawStreamUrl);
+    url.searchParams.set('camera', rawStreamUrl || '0');
   } else {
+    if (!rawStreamUrl) {
+      return defaultStreamUrl;
+    }
     url.searchParams.set('source', rawStreamUrl);
   }
 

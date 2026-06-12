@@ -258,7 +258,8 @@ function CameraStreamConnector({
   onUpdate: (cameraId: string, runtime: CameraRuntime) => void;
 }) {
   const streamUrl = useMemo(() => buildCameraStreamUrl(camera), [camera]);
-  const stream = useRealtimeStream(streamUrl, camera.enabled && Boolean(camera.streamUrl.trim()));
+  const hasConfiguredSource = camera.source === 'webcam' || Boolean(camera.streamUrl.trim());
+  const stream = useRealtimeStream(streamUrl, camera.enabled && hasConfiguredSource);
 
   useEffect(() => {
     onUpdate(camera.id, stream);

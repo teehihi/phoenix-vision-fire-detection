@@ -54,8 +54,16 @@ class WebcamStream:
         errors: list[str] = []
 
         for backend_name, backend_id in self._candidate_backends():
-            capture = cv2.VideoCapture(int(self.source), backend_id)
-            self._configure_capture(capture)
+            try:
+                capture = cv2.VideoCapture(int(self.source), backend_id)
+                self._configure_capture(capture)
+            except cv2.error as exc:
+                errors.append(f"{backend_name} ({exc})")
+                try:
+                    capture.release()
+                except Exception:
+                    pass
+                continue
 
             if capture.isOpened():
                 self.backend_name = backend_name
@@ -78,8 +86,16 @@ class WebcamStream:
         errors: list[str] = []
 
         for backend_name, backend_id in [("FFmpeg", cv2.CAP_FFMPEG), ("Any", cv2.CAP_ANY)]:
-            capture = cv2.VideoCapture(self.source, backend_id)
-            self._configure_capture(capture)
+            try:
+                capture = cv2.VideoCapture(self.source, backend_id)
+                self._configure_capture(capture)
+            except cv2.error as exc:
+                errors.append(f"{backend_name} ({exc})")
+                try:
+                    capture.release()
+                except Exception:
+                    pass
+                continue
 
             if capture.isOpened():
                 self.backend_name = backend_name
@@ -92,10 +108,16 @@ class WebcamStream:
         raise RuntimeError(f"Unable to open camera URL/source {self.source}. Tried backends: {tried}.")
 
     def _configure_capture(self, capture: cv2.VideoCapture) -> None:
-        capture.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-        capture.set(cv2.CAP_PROP_FPS, self.fps)
-        capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        for prop, value in (
+            (cv2.CAP_PROP_FRAME_WIDTH, self.width),
+            (cv2.CAP_PROP_FRAME_HEIGHT, self.height),
+            (cv2.CAP_PROP_FPS, self.fps),
+            (cv2.CAP_PROP_BUFFERSIZE, 1),
+        ):
+            try:
+                capture.set(prop, value)
+            except cv2.error:
+                continue
 
     def _candidate_backends(self) -> list[tuple[str, int]]:
         system = platform.system()

@@ -4,6 +4,7 @@ from collections.abc import Iterator
 from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocketState
 
 from app.core.config import settings
 from app.models.yolo_detector import get_yolo_detector
@@ -37,6 +38,10 @@ async def stream_webcam(websocket: WebSocket) -> None:
 
     fire_detector = None if probe_only else get_yolo_detector(model_path)
     person_detector = get_yolo_detector(person_model_path) if person_model_path and not probe_only else None
+    if fire_detector is not None:
+        await asyncio.to_thread(fire_detector.load)
+    if person_detector is not None:
+        await asyncio.to_thread(person_detector.load)
     stream = WebcamStream(
         camera_index=camera_index,
         source=source_url,
@@ -132,8 +137,12 @@ async def stream_webcam(websocket: WebSocket) -> None:
     except Exception as exc:
         import traceback
         traceback.print_exc()
-        await websocket.send_json({"type": "stream_error", "message": str(exc)})
-        await websocket.close(code=1011)
+        if websocket.client_state == WebSocketState.CONNECTED:
+            try:
+                await websocket.send_json({"type": "stream_error", "message": str(exc)})
+                await websocket.close(code=1011)
+            except WebSocketDisconnect:
+                return
 
 
 def _next_frame(frames: Iterator[Any]) -> Any | None:

@@ -108,16 +108,16 @@ export function AppLayout() {
 
           <div className="mt-8 space-y-5">
             {!collapsed ? (
-              <div className="rounded-2xl bg-slate-50 p-4 border border-slate-100 text-[11px] leading-5 text-slate-500">
-                <p className="font-semibold text-orange-600 mb-2 uppercase tracking-wide">Thông tin Đề tài</p>
-                <p className="text-slate-700 font-medium mb-3">{t('project_title', 'Xây dựng hệ thống cảnh báo cháy thông minh sử dụng YOLO và xử lý ảnh thời gian thực')}</p>
-                <p className="font-bold text-slate-600">{t('project_group', 'Nhóm 9')}</p>
-                <ul className="mt-1 mb-3 space-y-0.5">
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 text-[15px] leading-7 text-slate-500">
+                <p className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-orange-600">Thông tin Đề tài</p>
+                <p className="mb-3 text-[17px] font-semibold leading-7 text-slate-700">{t('project_title', 'Xây dựng hệ thống cảnh báo cháy thông minh sử dụng YOLO và xử lý ảnh thời gian thực')}</p>
+                <p className="text-[15px] font-bold text-slate-600">{t('project_group', 'Nhóm 9')}</p>
+                <ul className="mb-3 mt-1 space-y-1 text-[14px] text-slate-600">
                   <li>Nguyễn Nhật Thiên - 23110153</li>
                   <li>Phạm Văn Hậu - 23110098</li>
                   <li>Trương Công Anh - 23110075</li>
                 </ul>
-                <p className="font-semibold text-slate-600 border-t border-slate-200 pt-2">{t('project_advisor', 'GVHD: PGS.TS Hoàng Văn Dũng')}</p>
+                <p className="border-t border-slate-200 pt-2 text-[14px] font-semibold text-slate-600">{t('project_advisor', 'GVHD: PGS.TS Hoàng Văn Dũng')}</p>
               </div>
             ) : null}
 
