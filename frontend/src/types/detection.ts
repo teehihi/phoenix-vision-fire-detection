@@ -51,11 +51,17 @@ export type DetectionEvent = {
 export type AlertEvent = {
   id: string;
   detectionId: string;
+  cameraId: string;
+  label: string;
+  incidentId: string;
   title: string;
   message: string;
   severity: DetectionSeverity;
   status: 'open' | 'acknowledged' | 'resolved';
+  snapshotUrl?: string | null;
+  occurrenceCount: number;
   createdAt: string;
+  lastSeenAt: string;
 };
 
 export type EmergencyState = 'monitoring' | 'warning' | 'emergency' | 'critical';

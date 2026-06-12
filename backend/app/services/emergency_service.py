@@ -72,6 +72,7 @@ class EmergencyService:
             escalation_count=current.escalation_count + 1 if self._is_escalation(current.state, next_state) else current.escalation_count,
             created_at=now,
         )
+        incident_id = current.active_event_id or event.id
         should_store_snapshot = next_state != current.state or not current.snapshot_url
         event.snapshot_url = (
             store_snapshot(user_id, event.id, payload.snapshot_url)
@@ -98,16 +99,20 @@ class EmergencyService:
                 user_id,
                 Alert(
                     detection_id=event.id,
+                    camera_id=event.camera_id,
+                    label="emergency",
+                    incident_id=incident_id,
                     title=f"Cảnh báo nguy cơ: {payload.risk_level.upper()}",
                     message=event.message,
                     severity=severity,
+                    snapshot_url=event.snapshot_url,
                 )
             )
 
         updated = updated.model_copy(
             update={
                 "state": next_state,
-                "active_event_id": event.id if next_state != EmergencyState.monitoring else None,
+                "active_event_id": incident_id if next_state != EmergencyState.monitoring else None,
                 "snapshot_url": event.snapshot_url or current.snapshot_url,
                 "escalation_count": event.escalation_count,
                 "last_transition_at": now,
@@ -174,11 +179,12 @@ class EmergencyService:
                 human_at_risk=event.human_at_risk,
                 humans_nearby_count=1 if event.human_at_risk else 0,
                 snapshot_url=event.snapshot_url,
-                metadata={
-                    "emergencyEventId": event.id,
-                    "action": "acknowledge",
-                    "operator": "system_operator"
-                }
+            metadata={
+                "emergencyEventId": event.id,
+                "incidentId": event.id,
+                "action": "acknowledge",
+                "operator": "system_operator"
+            }
             )
         )
         return event
@@ -223,11 +229,12 @@ class EmergencyService:
                 human_at_risk=False,
                 humans_nearby_count=0,
                 snapshot_url=event.snapshot_url,
-                metadata={
-                    "emergencyEventId": event.id,
-                    "action": "resolve",
-                    "operator": "system_operator"
-                }
+            metadata={
+                "emergencyEventId": event.id,
+                "incidentId": event.id,
+                "action": "resolve",
+                "operator": "system_operator"
+            }
             )
         )
         # Turn off ESP32 alarm/pump on resolve

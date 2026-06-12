@@ -727,7 +727,7 @@ function FullscreenCamera({
     }
 
     loadIncidents();
-    const intervalId = window.setInterval(loadIncidents, 5000);
+    const intervalId = window.setInterval(loadIncidents, 15000);
     return () => {
       isMounted = false;
       window.clearInterval(intervalId);

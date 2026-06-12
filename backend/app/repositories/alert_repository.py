@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from app.db.firestore import delete_collection, get_user_collection, with_expiration
 from app.models.alert import Alert
 
@@ -18,6 +20,27 @@ class AlertRepository:
         data = with_expiration(alert.model_dump(mode="python"))
         get_user_collection(user_id, self.collection_name).document(alert.id).set(data)
         return alert
+
+    def save(self, user_id: str, alert: Alert) -> Alert:
+        data = with_expiration(alert.model_dump(mode="python"))
+        get_user_collection(user_id, self.collection_name).document(alert.id).set(data)
+        return alert
+
+    def find_recent_similar(
+        self,
+        user_id: str,
+        camera_id: str,
+        label: str,
+        since: datetime,
+    ) -> Alert | None:
+        matches = [
+            alert
+            for alert in self.list(user_id)
+            if alert.camera_id == camera_id and alert.label == label and alert.last_seen_at >= since
+        ]
+        if not matches:
+            return None
+        return max(matches, key=lambda alert: alert.last_seen_at)
 
     def delete(self, user_id: str, alert_id: str) -> bool:
         reference = get_user_collection(user_id, self.collection_name).document(alert_id)

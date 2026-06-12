@@ -50,6 +50,11 @@ class IncidentTimelineService:
         return self.repository.add(user_id, event)
 
     def create_from_emergency(self, user_id: str, event: EmergencyEvent) -> IncidentTimelineEvent:
+        incident_id = event.id
+        existing_status = emergency_repository.get_status(user_id, event.camera_id)
+        if existing_status.active_event_id:
+            incident_id = existing_status.active_event_id
+
         timeline_event = IncidentTimelineEvent(
             camera_id=event.camera_id,
             event_type=IncidentEventType.emergency_transition,
@@ -61,6 +66,7 @@ class IncidentTimelineService:
             snapshot_url=event.snapshot_url,
             metadata={
                 "emergencyEventId": event.id,
+                "incidentId": incident_id,
                 "previousState": event.previous_state,
                 "state": event.state,
                 "escalationCount": event.escalation_count,

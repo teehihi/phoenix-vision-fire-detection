@@ -4,6 +4,10 @@ from app.repositories.alert_repository import alert_repository
 from app.repositories.detection_repository import DetectionRepository
 from app.services.ai_client import AIServiceClient
 from app.services.alert_service import AlertService
+from app.services.incident_timeline_service import IncidentTimelineService
+from app.repositories.incident_timeline_repository import incident_timeline_repository
+from app.schemas.incident_timeline import IncidentTimelineEventCreate
+from app.models.incident_timeline import IncidentEventType, IncidentRiskLevel
 
 
 class DetectionService:
@@ -11,6 +15,7 @@ class DetectionService:
         self.repository = repository
         self.ai_client = AIServiceClient()
         self.alert_service = AlertService(alert_repository)
+        self.timeline_service = IncidentTimelineService(incident_timeline_repository)
 
     def list_events(self, user_id: str) -> list[DetectionEvent]:
         return self.repository.list(user_id)
@@ -22,7 +27,26 @@ class DetectionService:
 
         for event in stored:
             if event.confidence >= settings.alert_confidence_threshold:
-                self.alert_service.create_from_detection(user_id, event)
+                alert_result = self.alert_service.create_from_detection(user_id, event)
+                if alert_result.created:
+                    self.timeline_service.create_event(
+                        user_id,
+                        IncidentTimelineEventCreate(
+                            camera_id=event.camera_id,
+                            event_type=IncidentEventType.detection,
+                            title=f"{event.label.title()} detected",
+                            description=f"AI ghi nhận {event.label} tren {event.camera_id} voi do tin cay {event.confidence:.0%}.",
+                            risk_level=IncidentRiskLevel(event.severity.name.upper()),
+                            confidence=event.confidence,
+                            snapshot_url=event.snapshot_url,
+                            metadata={
+                                "detectionId": event.id,
+                                "alertId": alert_result.alert.id,
+                                "incidentId": alert_result.alert.incident_id,
+                                "label": event.label,
+                            },
+                        ),
+                    )
 
         return stored
 

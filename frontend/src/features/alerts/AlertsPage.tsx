@@ -1,23 +1,31 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { EmergencyPanel } from '../emergency/EmergencyPanel';
-import { getAlerts, deleteAlert, clearAllAlerts } from '../../lib/apiClient';
-import type { AlertEvent } from '../../types/detection';
-import { AlertCircle, Siren, CheckCircle2, Trash2 } from 'lucide-react';
+import { getAlerts, deleteAlert, clearAllAlerts, getIncidentTimeline } from '../../lib/apiClient';
+import type { AlertEvent, IncidentTimelineEvent } from '../../types/detection';
+import { AlertCircle, ChevronDown, ChevronRight, Siren, CheckCircle2, Trash2 } from 'lucide-react';
 import { useTranslation } from '../../lib/i18n';
 import { IoTDeviceStatus } from '../detection/IoTDeviceStatus';
+import { groupAlertsByIncident, groupIncidentTimeline, type GroupedAlertIncident } from '../history/incidentGrouping';
 
 export function AlertsPage() {
   const { t } = useTranslation();
   const [alerts, setAlerts] = useState<AlertEvent[]>([]);
+  const [timelineEvents, setTimelineEvents] = useState<IncidentTimelineEvent[]>([]);
+  const [expandedIncidentId, setExpandedIncidentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   async function fetchAlerts() {
     try {
-      const data = await getAlerts();
+      const [data, timeline] = await Promise.all([
+        getAlerts(),
+        getIncidentTimeline(),
+      ]);
       // Sắp xếp cảnh báo mới nhất lên đầu
       const sorted = [...data].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setAlerts(sorted);
+      setTimelineEvents(timeline);
       setError(null);
     } catch {
       setError('Không thể lấy danh sách cảnh báo từ máy chủ.');
@@ -28,9 +36,12 @@ export function AlertsPage() {
 
   useEffect(() => {
     fetchAlerts();
-    const interval = window.setInterval(fetchAlerts, 3000);
+    const interval = window.setInterval(fetchAlerts, 10000);
     return () => window.clearInterval(interval);
   }, []);
+
+  const incidents = useMemo(() => groupIncidentTimeline(timelineEvents, alerts), [timelineEvents, alerts]);
+  const alertIncidents = useMemo(() => groupAlertsByIncident(alerts, incidents), [alerts, incidents]);
 
   const severityStyles: Record<string, string> = {
     low: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -77,12 +88,15 @@ export function AlertsPage() {
             </button>
           ) : null}
         </div>
+        <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500">
+          Cảnh báo được gom theo từng đợt sự cố để tránh trùng lặp khi một camera phát hiện liên tiếp nhiều frame tương tự. Dữ liệu cũ có thể tự dọn theo cấu hình lưu trữ của hệ thống, mặc định khoảng 30 ngày.
+        </p>
 
         {error ? (
           <p className="text-sm font-medium text-red-600">{error}</p>
         ) : loading && alerts.length === 0 ? (
           <p className="text-sm text-slate-500">Đang tải danh sách cảnh báo...</p>
-        ) : alerts.length === 0 ? (
+        ) : alertIncidents.length === 0 ? (
           <div className="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
             <CheckCircle2 className="mx-auto h-8 w-8 text-slate-400" />
             <p className="mt-3 text-sm font-medium text-slate-900">Không có cảnh báo nào</p>
@@ -90,55 +104,141 @@ export function AlertsPage() {
           </div>
         ) : (
           <div className="grid gap-3">
-            {alerts.map((alertItem) => {
-              const timeStr = new Date(alertItem.createdAt).toLocaleString('vi-VN');
-              return (
-                <div
-                  key={alertItem.id}
-                  className={`flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-xl border bg-white p-5 shadow-sm transition hover:shadow-md ${
-                    alertItem.severity === 'critical' ? 'border-red-200 bg-red-50/10' : 'border-slate-200'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`mt-0.5 rounded-lg p-2.5 ${alertItem.severity === 'critical' ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-600'}`}>
-                      <AlertCircle size={20} />
-                    </div>
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-semibold text-slate-900">{alertItem.title}</h3>
-                        <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold uppercase ${severityStyles[alertItem.severity] || 'bg-slate-50 text-slate-600 border-slate-200'}`}>
-                          {alertItem.severity}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-sm text-slate-600">{alertItem.message}</p>
-                      <p className="mt-2 text-xs text-slate-400">{timeStr}</p>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (window.confirm('Bạn có chắc chắn muốn xóa cảnh báo này không?')) {
-                        try {
-                          await deleteAlert(alertItem.id);
-                          fetchAlerts();
-                        } catch {
-                          alert('Không thể xóa cảnh báo.');
-                        }
-                      }
-                    }}
-                    className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 hover:border-rose-200 active:scale-95 shrink-0 self-end md:self-center"
-                    title="Xóa cảnh báo"
-                  >
-                    <Trash2 size={14} />
-                    Xóa
-                  </button>
-                </div>
-              );
-            })}
+            {alertIncidents.map((incident) => (
+              <AlertIncidentCard
+                key={incident.id}
+                incident={incident}
+                expanded={expandedIncidentId === incident.id}
+                severityStyles={severityStyles}
+                onToggle={() => setExpandedIncidentId((current) => current === incident.id ? null : incident.id)}
+                onDeleteAlert={async (alertId) => {
+                  if (!window.confirm('Bạn có chắc chắn muốn xóa cảnh báo này không?')) return;
+                  try {
+                    await deleteAlert(alertId);
+                    fetchAlerts();
+                  } catch {
+                    alert('Không thể xóa cảnh báo.');
+                  }
+                }}
+                onDeleteGroup={async () => {
+                  if (!window.confirm('Xóa toàn bộ cảnh báo trong incident này?')) return;
+                  try {
+                    await Promise.all(incident.alerts.map((alertItem) => deleteAlert(alertItem.id)));
+                    fetchAlerts();
+                  } catch {
+                    alert('Không thể xóa nhóm cảnh báo.');
+                  }
+                }}
+              />
+            ))}
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+function AlertIncidentCard({
+  incident,
+  expanded,
+  severityStyles,
+  onToggle,
+  onDeleteAlert,
+  onDeleteGroup,
+}: {
+  incident: GroupedAlertIncident;
+  expanded: boolean;
+  severityStyles: Record<string, string>;
+  onToggle: () => void;
+  onDeleteAlert: (alertId: string) => void;
+  onDeleteGroup: () => void;
+}) {
+  const isCritical = incident.severity === 'critical';
+  const detailUrl = incident.timelineIncident ? `/history?incident=${incident.timelineIncident.id}` : '/history';
+
+  return (
+    <article
+      className={`rounded-xl border bg-white p-5 shadow-sm transition hover:shadow-md ${
+        isCritical ? 'border-red-200 bg-red-50/10' : 'border-slate-200'
+      }`}
+    >
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className={`mt-0.5 rounded-lg p-2.5 ${isCritical ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-600'}`}>
+            <AlertCircle size={20} />
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={onToggle} className="inline-flex min-w-0 items-center gap-1 text-left font-semibold text-slate-900 hover:text-cyan-700">
+                {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                <span className="truncate">{incident.cameraId} - {incident.title}</span>
+              </button>
+              <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold uppercase ${severityStyles[incident.severity] || 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                {incident.severity}
+              </span>
+              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600">
+                {incident.alerts.length} cảnh báo
+              </span>
+              {incident.occurrenceCount > 1 ? (
+                <span className="rounded-full bg-orange-50 px-2.5 py-0.5 text-xs font-semibold text-orange-700">
+                  {incident.occurrenceCount} lần ghi nhận
+                </span>
+              ) : null}
+            </div>
+            <p className="mt-1 text-sm text-slate-600">{incident.message}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+              <span>Bắt đầu {new Date(incident.startAt).toLocaleString('vi-VN')}</span>
+              <span>Gần nhất {new Date(incident.lastSeenAt).toLocaleString('vi-VN')}</span>
+              <Link to={detailUrl} className="font-semibold text-cyan-700 hover:text-cyan-800">
+                Xem incident chi tiết
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onDeleteGroup}
+          className="flex shrink-0 items-center justify-center gap-1.5 self-end rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 hover:border-rose-200 active:scale-95 md:self-center"
+          title="Xóa nhóm cảnh báo"
+        >
+          <Trash2 size={14} />
+          Xóa nhóm
+        </button>
+      </div>
+
+      {expanded ? (
+        <div className="mt-4 space-y-2 border-t border-slate-200 pt-4">
+          {incident.alerts.map((alertItem) => (
+            <div key={alertItem.id} className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-semibold text-slate-900">{alertItem.title}</p>
+                  <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold uppercase ${severityStyles[alertItem.severity] || 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                    {alertItem.severity}
+                  </span>
+                  {alertItem.occurrenceCount > 1 ? (
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{alertItem.occurrenceCount} lần</span>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-sm text-slate-600">{alertItem.message}</p>
+                <p className="mt-2 text-xs text-slate-400">
+                  {new Date(alertItem.createdAt).toLocaleString('vi-VN')} - gần nhất {new Date(alertItem.lastSeenAt).toLocaleString('vi-VN')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onDeleteAlert(alertItem.id)}
+                className="flex shrink-0 items-center justify-center gap-1.5 self-end rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 hover:border-rose-200 active:scale-95 sm:self-center"
+                title="Xóa cảnh báo"
+              >
+                <Trash2 size={14} />
+                Xóa
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </article>
   );
 }

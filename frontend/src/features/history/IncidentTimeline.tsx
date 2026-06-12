@@ -1,8 +1,10 @@
 import { AlertTriangle, Camera, Clock, Flame, ShieldAlert, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { SecureStorageImage } from '../../components/ui/SecureStorageImage';
 import { getIncidentTimeline, type IncidentTimelineFilters, deleteTimelineEvent, clearAllTimelineEvents } from '../../lib/apiClient';
 import type { IncidentTimelineEvent } from '../../types/detection';
+import { groupIncidentTimeline } from './incidentGrouping';
 
 const riskClasses = {
   LOW: 'bg-sky-50 text-sky-700 ring-sky-200',
@@ -15,6 +17,8 @@ export function IncidentTimeline() {
   const [events, setEvents] = useState<IncidentTimelineEvent[]>([]);
   const [filters, setFilters] = useState<IncidentTimelineFilters>({});
   const [error, setError] = useState<string | null>(null);
+  const [expandedIncidentId, setExpandedIncidentId] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
 
   async function loadEvents() {
     try {
@@ -28,13 +32,21 @@ export function IncidentTimeline() {
 
   useEffect(() => {
     loadEvents();
-    const intervalId = window.setInterval(loadEvents, 4000);
+    const intervalId = window.setInterval(loadEvents, 12000);
     return () => {
       window.clearInterval(intervalId);
     };
   }, [filters]);
 
   const hasFilters = useMemo(() => Object.values(filters).some(Boolean), [filters]);
+  const groupedIncidents = useMemo(() => groupIncidentTimeline(events), [events]);
+  const highlightedIncidentId = searchParams.get('incident');
+
+  useEffect(() => {
+    if (highlightedIncidentId) {
+      setExpandedIncidentId(highlightedIncidentId);
+    }
+  }, [highlightedIncidentId]);
 
   async function handleDeleteEvent(eventId: string) {
     if (window.confirm('Bạn có chắc chắn muốn xóa sự kiện lịch sử này không?')) {
@@ -109,11 +121,11 @@ export function IncidentTimeline() {
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-950">Incident Timeline</h2>
-            <p className="text-sm text-slate-500">Cập nhật realtime mỗi 4 giây, có snapshot và metadata vận hành.</p>
+            <p className="text-sm text-slate-500">Sự kiện được gom theo từng camera và từng đợt cảnh báo để tránh loạn giao diện.</p>
           </div>
           <div className="flex items-center gap-3">
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{events.length} events</span>
-            {events.length > 0 ? (
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{groupedIncidents.length} incidents</span>
+            {groupedIncidents.length > 0 ? (
               <button
                 type="button"
                 onClick={handleClearAllEvents}
@@ -125,16 +137,114 @@ export function IncidentTimeline() {
             ) : null}
           </div>
         </div>
+        <p className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500">
+          Dữ liệu lịch sử có thể được tự động dọn theo cấu hình lưu trữ của hệ thống. Mặc định backend hiện dùng chu kỳ lưu khoảng 30 ngày.
+        </p>
 
         <div className="space-y-4">
-          {events.length ? events.map((event) => (
-            <TimelineItem key={event.id} event={event} onDelete={() => handleDeleteEvent(event.id)} />
+          {groupedIncidents.length ? groupedIncidents.map((incident) => (
+            <IncidentGroupCard
+              key={incident.id}
+              incident={incident}
+              expanded={expandedIncidentId === incident.id || highlightedIncidentId === incident.id}
+              highlighted={highlightedIncidentId === incident.id}
+              onToggle={() => setExpandedIncidentId((current) => current === incident.id ? null : incident.id)}
+              onDeleteEvent={handleDeleteEvent}
+            />
           )) : (
             <EmptyTimeline />
           )}
         </div>
       </div>
     </section>
+  );
+}
+
+function IncidentGroupCard({
+  incident,
+  expanded,
+  highlighted,
+  onToggle,
+  onDeleteEvent,
+}: {
+  incident: ReturnType<typeof groupIncidentTimeline>[number];
+  expanded: boolean;
+  highlighted: boolean;
+  onToggle: () => void;
+  onDeleteEvent: (eventId: string) => Promise<void> | void;
+}) {
+  const leadEvent = incident.events[0];
+  const Icon = incident.humanAtRisk ? ShieldAlert : leadEvent.eventType === 'snapshot' ? Camera : incident.riskLevel === 'LOW' ? Clock : Flame;
+
+  return (
+    <article className={`rounded-lg border p-4 transition ${highlighted ? 'border-orange-300 bg-orange-50/40' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'}`}>
+      <div className="grid gap-4 md:grid-cols-[1fr_180px]">
+        <div className="flex gap-3">
+          <div className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full ring-1 ${riskClasses[incident.riskLevel]}`}>
+            <Icon size={18} />
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={onToggle} className="text-left font-semibold text-slate-950 hover:text-orange-700">
+                {incident.cameraId} - {incident.title}
+              </button>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${riskClasses[incident.riskLevel]}`}>{incident.riskLevel}</span>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                {incident.eventCount} sự kiện
+              </span>
+              {incident.active ? <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">Đang mở</span> : null}
+            </div>
+            <p className="mt-1 text-sm text-slate-600">{incident.description}</p>
+            <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
+              <span>Bắt đầu {new Date(incident.startAt).toLocaleString()}</span>
+              <span>Kết thúc/gần nhất {new Date(incident.endAt).toLocaleString()}</span>
+              {incident.humanAtRisk ? <span className="font-semibold text-red-600">Human danger</span> : null}
+            </div>
+          </div>
+        </div>
+
+        {incident.snapshotUrl ? (
+          <SecureStorageImage source={incident.snapshotUrl} alt={incident.title} className="h-28 w-full rounded-md object-cover md:h-full" />
+        ) : (
+          <div className="hidden items-center justify-center rounded-md bg-slate-100 text-slate-400 md:flex">
+            <AlertTriangle size={20} />
+          </div>
+        )}
+      </div>
+
+      {expanded ? (
+        <div className="mt-4 space-y-3 border-t border-slate-200 pt-4">
+          {incident.events.map((event) => (
+            <div key={event.id} className="grid gap-3 rounded-lg border border-slate-200 bg-white p-3 md:grid-cols-[1fr_80px]">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-semibold text-slate-900">{event.title}</p>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${riskClasses[event.riskLevel]}`}>{event.riskLevel}</span>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{event.eventType}</span>
+                </div>
+                <p className="mt-1 text-sm text-slate-600">{event.description}</p>
+                <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
+                  <span>{new Date(event.createdAt).toLocaleString()}</span>
+                  {event.confidence != null ? <span>Confidence {(event.confidence * 100).toFixed(0)}%</span> : null}
+                  {event.riskScore != null ? <span>Risk {event.riskScore.toFixed(0)}/100</span> : null}
+                </div>
+              </div>
+              <div className="flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={() => onDeleteEvent(event.id)}
+                  className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 hover:border-rose-200 active:scale-95"
+                  title="Xóa sự kiện này"
+                >
+                  <Trash2 size={13} />
+                  Xóa
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </article>
   );
 }
 

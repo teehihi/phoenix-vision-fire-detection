@@ -70,7 +70,7 @@ export function EmergencyPanel({ compact = false }: EmergencyPanelProps) {
 
   useEffect(() => {
     loadStatus();
-    const intervalId = window.setInterval(loadStatus, 3000);
+    const intervalId = window.setInterval(loadStatus, 10000);
     return () => {
       window.clearInterval(intervalId);
     };

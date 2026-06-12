@@ -14,6 +14,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { getEmergencyStatus, getIncidentTimeline, triggerMockEmergency } from '../../lib/apiClient';
 import type { EmergencyStatus, IncidentTimelineEvent } from '../../types/detection';
+import { groupIncidentTimeline } from '../history/incidentGrouping';
 
 const riskMeta = {
   LOW: {
@@ -72,17 +73,24 @@ export function StatisticsPage() {
 
   useEffect(() => {
     loadData();
-    const statusInterval = window.setInterval(loadData, 5000);
+    const statusInterval = window.setInterval(loadData, 15000);
     return () => window.clearInterval(statusInterval);
   }, []);
 
-  const riskLevel = (status?.riskLevel ?? 'LOW') as RiskLevel;
-  const currentRisk = riskMeta[riskLevel];
-  const isDanger = riskLevel === 'HIGH' || riskLevel === 'CRITICAL';
-  const smokeDensity = riskLevel === 'CRITICAL' ? 82 : riskLevel === 'HIGH' ? 65 : riskLevel === 'MEDIUM' ? 25 : 0;
-
   const hourlyData = useMemo(() => buildHourlyData(timelineEvents), [timelineEvents]);
   const distribution = useMemo(() => buildRiskDistribution(timelineEvents), [timelineEvents]);
+  const incidentGroups = useMemo(() => groupIncidentTimeline(timelineEvents), [timelineEvents]);
+  const systemRiskLevel = useMemo(() => deriveSystemRiskLevel(status, timelineEvents), [status, timelineEvents]);
+  const currentRisk = riskMeta[systemRiskLevel];
+  const isDanger = systemRiskLevel === 'HIGH' || systemRiskLevel === 'CRITICAL';
+  const smokeDensity = systemRiskLevel === 'CRITICAL' ? 82 : systemRiskLevel === 'HIGH' ? 65 : systemRiskLevel === 'MEDIUM' ? 25 : 0;
+  const activeIncidentCount = incidentGroups.filter((incident) => isRecentIncident(incident.endAt)).length;
+  const humanAtRisk = Boolean(status?.humanAtRisk) || timelineEvents.some((event) => isRecentEvent(event.createdAt) && event.humanAtRisk);
+  const currentRiskScore = Math.max(
+    status?.riskScore ?? 0,
+    ...timelineEvents.filter((event) => isRecentEvent(event.createdAt)).map((event) => event.riskScore ?? 0),
+    0,
+  );
   const maxHourlyValue = Math.max(...hourlyData.map((item) => item.value), 1);
   const averageRisk = timelineEvents.length
     ? Math.round(timelineEvents.reduce((sum, event) => sum + (event.riskScore ?? 0), 0) / timelineEvents.length)
@@ -91,7 +99,7 @@ export function StatisticsPage() {
   const metrics = [
     {
       label: 'Điểm rủi ro hiện tại',
-      value: `${Math.round(status?.riskScore ?? 0)}`,
+      value: `${Math.round(currentRiskScore)}`,
       unit: '/ 100',
       note: currentRisk.label,
       icon: Activity,
@@ -107,11 +115,11 @@ export function StatisticsPage() {
     },
     {
       label: 'Người trong vùng rủi ro',
-      value: status?.humanAtRisk ? '1' : '0',
+      value: humanAtRisk ? '1' : '0',
       unit: 'người',
-      note: status?.humanAtRisk ? 'Cần hỗ trợ' : 'Khu vực an toàn',
+      note: humanAtRisk ? 'Cần hỗ trợ' : 'Khu vực an toàn',
       icon: Users,
-      tone: status?.humanAtRisk ? 'text-red-600 bg-red-50' : 'text-blue-600 bg-blue-50'
+      tone: humanAtRisk ? 'text-red-600 bg-red-50' : 'text-blue-600 bg-blue-50'
     },
     {
       label: 'Sự kiện 12 giờ gần nhất',
@@ -246,7 +254,7 @@ export function StatisticsPage() {
           </div>
           <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-xs text-slate-500">
             <span><strong className="font-semibold text-slate-800">{averageRisk}</strong> điểm rủi ro trung bình</span>
-            <span><strong className="font-semibold text-slate-800">{status?.escalationCount ?? 0}</strong> lần chuyển cấp</span>
+            <span><strong className="font-semibold text-slate-800">{activeIncidentCount}</strong> incident gần đây</span>
             <span><strong className="font-semibold text-slate-800">{distribution.CRITICAL + distribution.HIGH}</strong> sự kiện nghiêm trọng</span>
           </div>
         </Panel>
@@ -277,7 +285,7 @@ export function StatisticsPage() {
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
-        <IncidentSummary events={timelineEvents} status={status} />
+        <IncidentSummary events={timelineEvents} />
         <Panel>
           <PanelHeader
             title="Nhật ký gần đây"
@@ -321,7 +329,7 @@ export function StatisticsPage() {
         <HealthItem
           icon={Flame}
           title="Cảnh báo đang mở"
-          value={String(status?.escalationCount ?? 0).padStart(2, '0')}
+          value={String(activeIncidentCount).padStart(2, '0')}
           description={isDanger ? 'Có cảnh báo cần người vận hành xử lý' : 'Không có cảnh báo cần xử lý'}
           healthy={!isDanger}
         />
@@ -329,7 +337,7 @@ export function StatisticsPage() {
           icon={Clock3}
           title="Cập nhật gần nhất"
           value={lastUpdated ? formatTime(lastUpdated) : '--:--'}
-          description="Số liệu thống kê tự làm mới mỗi 5 giây"
+          description="Số liệu thống kê tự làm mới mỗi 15 giây"
           healthy
         />
       </section>
@@ -344,10 +352,11 @@ export function StatisticsPage() {
   );
 }
 
-function IncidentSummary({ events, status }: { events: IncidentTimelineEvent[]; status: EmergencyStatus | null }) {
+function IncidentSummary({ events }: { events: IncidentTimelineEvent[] }) {
   const operatorActions = events.filter((event) => event.eventType === 'operator_action').length;
   const humanRiskEvents = events.filter((event) => event.humanAtRisk).length;
   const lastEvent = events[0];
+  const recentIncidentCount = groupIncidentTimeline(events).filter((incident) => isRecentIncident(incident.endAt)).length;
 
   return (
     <Panel>
@@ -357,7 +366,7 @@ function IncidentSummary({ events, status }: { events: IncidentTimelineEvent[]; 
         aside={<ShieldCheck size={17} className="text-slate-400" />}
       />
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <SummaryTile label="Incident đang mở" value={status?.activeEventId ? '01' : '00'} />
+        <SummaryTile label="Incident gần đây" value={String(recentIncidentCount).padStart(2, '0')} />
         <SummaryTile label="Thao tác vận hành" value={String(operatorActions).padStart(2, '0')} />
         <SummaryTile label="Có người trong vùng nguy hiểm" value={String(humanRiskEvents).padStart(2, '0')} />
       </div>
@@ -518,6 +527,31 @@ function buildRiskDistribution(events: IncidentTimelineEvent[]) {
     { LOW: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 0 }
   );
 }
+
+function deriveSystemRiskLevel(status: EmergencyStatus | null, events: IncidentTimelineEvent[]): RiskLevel {
+  const recentEvents = events.filter((event) => isRecentEvent(event.createdAt));
+  const recentHighest = recentEvents.reduce<RiskLevel>(
+    (highest, event) => riskPriority[event.riskLevel] > riskPriority[highest] ? event.riskLevel : highest,
+    'LOW',
+  );
+  const statusRisk = (status?.riskLevel ?? 'LOW') as RiskLevel;
+  return riskPriority[recentHighest] > riskPriority[statusRisk] ? recentHighest : statusRisk;
+}
+
+function isRecentEvent(value: string) {
+  return Date.now() - new Date(value).getTime() <= 15 * 60 * 1000;
+}
+
+function isRecentIncident(value: string) {
+  return Date.now() - new Date(value).getTime() <= 15 * 60 * 1000;
+}
+
+const riskPriority: Record<RiskLevel, number> = {
+  LOW: 0,
+  MEDIUM: 1,
+  HIGH: 2,
+  CRITICAL: 3,
+};
 
 function formatTime(date: Date) {
   return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
