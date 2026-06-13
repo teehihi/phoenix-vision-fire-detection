@@ -324,59 +324,75 @@ void setRingColor(uint8_t r, uint8_t g, uint8_t b)
   strip.show();
 }
 
-// Hiệu ứng 1: Còi báo cháy xoay tròn đỏ cam kiểu xe ưu tiên (Alarm Siren Spinner)
+// Hiệu ứng 1: Còi cứu hỏa kép (Xoay tròn siêu tốc + Chớp tắt trắng đỏ khẩn cấp)
 void updateAlarmAnimation()
 {
   unsigned long now = millis();
-  if (now - lastLedUpdate < 35) return; // Xoay vòng mỗi 35ms cực kỳ mượt
+  if (now - lastLedUpdate < 40) return; // Cập nhật mượt mà mỗi 40ms
   lastLedUpdate = now;
 
   uint16_t numLeds = strip.numPixels();
-  animFrame = (animFrame + 1) % numLeds;
+  animFrame = (animFrame + 1) % 12; // Chu kỳ gồm 12 bước nhảy hiệu ứng
 
-  for (uint16_t i = 0; i < numLeds; i++)
+  if (animFrame >= 8) // Bước 8->11: Chớp trắng & đỏ cường độ cao (Strobe Flash)
   {
-    int diff = (animFrame - i + numLeds) % numLeds;
-    if (diff == 0)
+    if (animFrame % 2 == 0)
     {
-      strip.setPixelColor(i, strip.Color(255, 0, 0)); // Đầu: Đỏ chói sáng
-    }
-    else if (diff == 1)
-    {
-      strip.setPixelColor(i, strip.Color(255, 75, 0)); // Đuôi 1: Cam sáng
-    }
-    else if (diff == 2)
-    {
-      strip.setPixelColor(i, strip.Color(200, 130, 0)); // Đuôi 2: Vàng cam
-    }
-    else if (diff == 3)
-    {
-      strip.setPixelColor(i, strip.Color(70, 40, 0)); // Đuôi 3: Vàng tối
+      // Tất cả sáng trắng chói lòa
+      for (uint16_t i = 0; i < numLeds; i++) {
+        strip.setPixelColor(i, strip.Color(255, 255, 255));
+      }
     }
     else
     {
-      strip.setPixelColor(i, strip.Color(0, 0, 0)); // Các bóng còn lại tắt
+      // Tất cả sáng đỏ rực
+      for (uint16_t i = 0; i < numLeds; i++) {
+        strip.setPixelColor(i, strip.Color(255, 0, 0));
+      }
+    }
+  }
+  else // Bước 0->7: Còi xoay đỏ - cam rực rỡ quay tròn
+  {
+    uint16_t head = animFrame % numLeds;
+    for (uint16_t i = 0; i < numLeds; i++)
+    {
+      int diff = (head - i + numLeds) % numLeds;
+      if (diff == 0)
+      {
+        strip.setPixelColor(i, strip.Color(255, 0, 0));    // Đầu: Đỏ chói
+      }
+      else if (diff == 1)
+      {
+        strip.setPixelColor(i, strip.Color(255, 80, 0));   // Đuôi 1: Cam sáng
+      }
+      else if (diff == 2)
+      {
+        strip.setPixelColor(i, strip.Color(200, 140, 0));  // Đuôi 2: Vàng cam
+      }
+      else
+      {
+        strip.setPixelColor(i, strip.Color(0, 0, 0));      // Phần còn lại tắt
+      }
     }
   }
   strip.show();
 }
 
-// Hiệu ứng 2: Nhịp thở chậm màu xanh lá cho trạng thái an toàn (Breathing Green)
+// Hiệu ứng 2: Cầu vồng RGB chuyển sắc xoay chậm cực sang xịn mịn (Standby Rainbow)
 void updateSafeAnimation()
 {
   unsigned long now = millis();
-  if (now - lastLedUpdate < 15) return; // Cập nhật chuyển động nhẹ mỗi 15ms
+  if (now - lastLedUpdate < 30) return; // Chuyển sắc mượt mỗi 30ms
   lastLedUpdate = now;
 
-  animFrame = (animFrame + 1) % 360;
-  float rad = animFrame * 3.14159 / 180.0;
-  float factor = 0.15 + 0.85 * ((sin(rad) + 1.0) / 2.0); // Hiệu ứng thở dùng hình sin
+  animFrame = (animFrame + 150) % 65536; // Chạy qua dải màu Hue (0 -> 65535)
 
-  uint8_t greenVal = (uint8_t)(80 * factor); // Độ sáng max 80
-
-  for (uint16_t i = 0; i < strip.numPixels(); i++)
+  uint16_t numLeds = strip.numPixels();
+  for (uint16_t i = 0; i < numLeds; i++)
   {
-    strip.setPixelColor(i, strip.Color(0, greenVal, 0));
+    // Tạo góc lệch pha màu Hue giữa các bóng để tạo hiệu ứng xoáy màu cầu vồng
+    uint32_t pixelHue = animFrame + (i * 65536L / numLeds);
+    strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(pixelHue, 255, 70))); // Sáng 70 cho dịu mắt, sang trọng
   }
   strip.show();
 }
