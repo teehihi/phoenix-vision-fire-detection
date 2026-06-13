@@ -54,17 +54,23 @@ bool alarmActive = false;
 bool pumpActive = false;
 
 /* =========================
-   SIREN PATTERN
+   SIREN CONFIG & PATTERNS
 ========================= */
 
-// 3 nhịp nhanh + nghỉ
+// Cấu hình loại còi bạn đang sử dụng:
+// - true: Còi thụ động (Passive Buzzer) -> Tạo tiếng còi hú quét tần số kịch tính ("ú...ooo...ù")
+// - false: Còi chủ động (Active Buzzer) -> Nháy tít tít theo nhịp nâng cấp dồn dập
+constexpr bool USE_PASSIVE_BUZZER = true; 
+
+// Nhịp còi kịch tính mới (cho Còi chủ động): 3 nhịp tít nhanh + 1 tiếng hú kéo dài
 const unsigned long sirenPattern[] = {
-  80, 80,
-  80, 80,
-  80, 300
+  80, 80,   // tít 1
+  80, 80,   // tít 2
+  80, 80,   // tít 3
+  400, 200  // TÍTTTT... ngắt 200ms
 };
 
-const int patternLength = 6;
+const int patternLength = 8;
 
 unsigned long previousMillis = 0;
 int patternIndex = 0;
@@ -454,6 +460,10 @@ void stopAlarm()
   animFrame = 0;
   lastLedUpdate = 0;
 
+  if (USE_PASSIVE_BUZZER)
+  {
+    noTone(BUZZER_PIN);
+  }
   digitalWrite(
     BUZZER_PIN,
     BUZZER_OFF_LEVEL
@@ -606,40 +616,37 @@ void loop()
 
     unsigned long currentMillis = millis();
 
-    if (
-      currentMillis - previousMillis >=
-      sirenPattern[patternIndex]
-    )
+    if (USE_PASSIVE_BUZZER)
     {
-      previousMillis = currentMillis;
-
-      patternIndex =
-        (patternIndex + 1)
-        % patternLength;
-
-      if (patternIndex % 2 == 0)
-      {
-        digitalWrite(
-          LED_PIN,
-          LED_ON_LEVEL
-        );
-
-        digitalWrite(
-          BUZZER_PIN,
-          BUZZER_ON_LEVEL
-        );
+      // Tiếng còi hú cứu hỏa (quét tần số mịn từ 600Hz đến 1400Hz liên tục)
+      unsigned long cycle = currentMillis % 800; // Chu kỳ quét 800ms
+      int freq;
+      if (cycle < 400) {
+        freq = 600 + (cycle * 800 / 400); // Tần số tăng dần
+      } else {
+        freq = 1400 - ((cycle - 400) * 800 / 400); // Tần số giảm dần
       }
-      else
-      {
-        digitalWrite(
-          LED_PIN,
-          LED_OFF_LEVEL
-        );
+      tone(BUZZER_PIN, freq);
 
-        digitalWrite(
-          BUZZER_PIN,
-          BUZZER_OFF_LEVEL
-        );
+      // Nhịp nhấp nháy của đèn LED phụ (LED_PIN) vẫn chạy đồng bộ
+      if (currentMillis - previousMillis >= sirenPattern[patternIndex])
+      {
+        previousMillis = currentMillis;
+        patternIndex = (patternIndex + 1) % patternLength;
+        digitalWrite(LED_PIN, (patternIndex % 2 == 0) ? LED_ON_LEVEL : LED_OFF_LEVEL);
+      }
+    }
+    else
+    {
+      // Nhịp nhấp nháy cho cả còi chủ động (Active Buzzer) kêu tít tít dồn dập kịch tính
+      if (currentMillis - previousMillis >= sirenPattern[patternIndex])
+      {
+        previousMillis = currentMillis;
+        patternIndex = (patternIndex + 1) % patternLength;
+
+        bool isOn = (patternIndex % 2 == 0);
+        digitalWrite(LED_PIN, isOn ? LED_ON_LEVEL : LED_OFF_LEVEL);
+        digitalWrite(BUZZER_PIN, isOn ? BUZZER_ON_LEVEL : BUZZER_OFF_LEVEL);
       }
     }
   }
