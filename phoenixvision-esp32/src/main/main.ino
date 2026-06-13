@@ -324,17 +324,17 @@ void setRingColor(uint8_t r, uint8_t g, uint8_t b)
   strip.show();
 }
 
-// Hiệu ứng 1: Còi cứu hỏa kép (Xoay tròn siêu tốc + Chớp tắt trắng đỏ khẩn cấp)
+// Hiệu ứng 1: Còi cứu hỏa đỏ xanh (Xoay tròn đỏ xanh dương + Chớp tắt trắng đỏ nhịp cuối)
 void updateAlarmAnimation()
 {
   unsigned long now = millis();
-  if (now - lastLedUpdate < 40) return; // Cập nhật mượt mà mỗi 40ms
+  if (now - lastLedUpdate < 45) return; // Quay mỗi 45ms mượt mà
   lastLedUpdate = now;
 
   uint16_t numLeds = strip.numPixels();
-  animFrame = (animFrame + 1) % 12; // Chu kỳ gồm 12 bước nhảy hiệu ứng
+  animFrame = (animFrame + 1) % 12; // Chu kỳ 12 bước
 
-  if (animFrame >= 8) // Bước 8->11: Chớp trắng & đỏ cường độ cao (Strobe Flash)
+  if (animFrame >= 8) // Bước nhịp cuối (bước 8 -> 11): Chớp trắng & đỏ cường độ cao (Strobe Flash)
   {
     if (animFrame % 2 == 0)
     {
@@ -351,48 +351,57 @@ void updateAlarmAnimation()
       }
     }
   }
-  else // Bước 0->7: Còi xoay đỏ - cam rực rỡ quay tròn
+  else // Bước 0 -> 7: Đỏ và Xanh dương xoay tròn đối xứng nhau
   {
     uint16_t head = animFrame % numLeds;
     for (uint16_t i = 0; i < numLeds; i++)
     {
-      int diff = (head - i + numLeds) % numLeds;
-      if (diff == 0)
+      // Tính vị trí tương đối so với head đỏ và đối diện xanh dương
+      int diffRed = (i - head + numLeds) % numLeds;
+      int diffBlue = (i - (head + numLeds / 2) + numLeds) % numLeds;
+
+      if (diffRed == 0 || diffRed == 1)
       {
-        strip.setPixelColor(i, strip.Color(255, 0, 0));    // Đầu: Đỏ chói
+        strip.setPixelColor(i, strip.Color(255, 0, 0));    // Một nửa màu Đỏ
       }
-      else if (diff == 1)
+      else if (diffBlue == 0 || diffBlue == 1)
       {
-        strip.setPixelColor(i, strip.Color(255, 80, 0));   // Đuôi 1: Cam sáng
-      }
-      else if (diff == 2)
-      {
-        strip.setPixelColor(i, strip.Color(200, 140, 0));  // Đuôi 2: Vàng cam
+        strip.setPixelColor(i, strip.Color(0, 0, 255));    // Một nửa màu Xanh Dương
       }
       else
       {
-        strip.setPixelColor(i, strip.Color(0, 0, 0));      // Phần còn lại tắt
+        strip.setPixelColor(i, strip.Color(0, 0, 0));      // Bóng còn lại tắt
       }
     }
   }
   strip.show();
 }
 
-// Hiệu ứng 2: Cầu vồng RGB chuyển sắc xoay chậm cực sang xịn mịn (Standby Rainbow)
+// Hiệu ứng 2: Tắt hết bóng, thỉnh thoảng chớp đỏ bóng số 0 báo hoạt động (Smoke Detector Blink)
 void updateSafeAnimation()
 {
   unsigned long now = millis();
-  if (now - lastLedUpdate < 30) return; // Chuyển sắc mượt mỗi 30ms
+  if (now - lastLedUpdate < 40) return; // Kiểm tra mỗi 40ms
   lastLedUpdate = now;
 
-  animFrame = (animFrame + 150) % 65536; // Chạy qua dải màu Hue (0 -> 65535)
+  unsigned long m = now % 4000; // Chu kỳ 4 giây
 
-  uint16_t numLeds = strip.numPixels();
-  for (uint16_t i = 0; i < numLeds; i++)
+  if (m < 80) // Chỉ chớp đỏ trong 80ms đầu tiên của chu kỳ 4s
   {
-    // Tạo góc lệch pha màu Hue giữa các bóng để tạo hiệu ứng xoáy màu cầu vồng
-    uint32_t pixelHue = animFrame + (i * 65536L / numLeds);
-    strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(pixelHue, 255, 70))); // Sáng 70 cho dịu mắt, sang trọng
+    // Chớp LED đỏ ở pixel số 0
+    strip.setPixelColor(0, strip.Color(180, 0, 0)); 
+    for (uint16_t i = 1; i < strip.numPixels(); i++)
+    {
+      strip.setPixelColor(i, strip.Color(0, 0, 0));
+    }
+  }
+  else
+  {
+    // Tắt hoàn toàn
+    for (uint16_t i = 0; i < strip.numPixels(); i++)
+    {
+      strip.setPixelColor(i, strip.Color(0, 0, 0));
+    }
   }
   strip.show();
 }
