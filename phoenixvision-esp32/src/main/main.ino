@@ -60,24 +60,33 @@ bool pumpActive = false;
 // Cấu hình loại còi bạn đang sử dụng:
 // - true: Còi thụ động (Passive Buzzer) -> Tạo tiếng còi hú quét tần số kịch tính ("ú...ooo...ù")
 // - false: Còi chủ động (Active Buzzer) -> Nháy tít tít theo nhịp nâng cấp dồn dập
-constexpr bool USE_PASSIVE_BUZZER = true; 
+constexpr bool USE_PASSIVE_BUZZER = false; 
 
-// Các kiểu âm thanh cảnh báo (Dành riêng cho còi thụ động - USE_PASSIVE_BUZZER = true):
-// 1: Còi hú cứu hỏa truyền thống (Wail) - Quét chậm từ 1200Hz đến 2700Hz (Cực kỳ kịch tính!)
-// 2: Còi hú cảnh sát nhanh (Yelp) - Quét cực nhanh từ 1500Hz đến 3000Hz (Chói tai)
-// 3: Còi báo động hai âm sắc (Hi-Lo) - Kêu kiểu "tít...te...tít...te" ở tần số cao
-// 4: Còi cảnh báo cháy chuẩn ISO (Temporal 3) - 3 tiếng bíp chói tai ở tần số 2700Hz
+// Kiểu âm thanh / nhịp điệu báo động (Chọn từ 1 đến 4):
+// * Đối với Còi thụ động (Passive Buzzer - true):
+//   1: Còi hú cứu hỏa truyền thống (Wail) - Quét chậm từ 1200Hz đến 2700Hz (Cực kỳ kịch tính!)
+//   2: Còi hú cảnh sát nhanh (Yelp) - Quét cực nhanh từ 1500Hz đến 3000Hz (Chói tai)
+//   3: Còi báo động hai âm sắc (Hi-Lo) - Kêu kiểu "tít...te...tít...te" ở tần số cao
+//   4: Còi cảnh báo cháy chuẩn ISO (Temporal 3) - 3 tiếng bíp chói tai ở tần số 2700Hz
+// * Đối với Còi chủ động (Active Buzzer - false):
+//   1: Nhịp kịch tính kết hợp (3 tít nhanh + 1 kêu dài)
+//   2: Nhịp còi dồn dập cực nhanh (Machine Gun - 60ms kêu, 60ms nghỉ) - Nghe cực kỳ hối hả!
+//   3: Nhịp còi hú nhanh truyền thống (150ms kêu, 150ms nghỉ)
+//   4: Nhịp Temporal 3 chuẩn ISO báo cháy (500ms kêu, 500ms nghỉ x 3 lần, nghỉ dài 1.5s)
 constexpr int SIREN_STYLE = 1;
 
-// Nhịp còi kịch tính mới (cho Còi chủ động): 3 nhịp tít nhanh + 1 tiếng hú kéo dài
-const unsigned long sirenPattern[] = {
-  80, 80,   // tít 1
-  80, 80,   // tít 2
-  80, 80,   // tít 3
-  400, 200  // TÍTTTT... ngắt 200ms
-};
+// Nhịp còi cho Còi chủ động (Active Buzzer):
+const unsigned long patternStyle1[] = { 80, 80, 80, 80, 80, 80, 400, 200 };
+const int lengthStyle1 = 8;
 
-const int patternLength = 8;
+const unsigned long patternStyle2[] = { 60, 60 };
+const int lengthStyle2 = 2;
+
+const unsigned long patternStyle3[] = { 150, 150 };
+const int lengthStyle3 = 2;
+
+const unsigned long patternStyle4[] = { 500, 500, 500, 500, 500, 1500 };
+const int lengthStyle4 = 6;
 
 unsigned long previousMillis = 0;
 int patternIndex = 0;
@@ -684,20 +693,34 @@ void loop()
       }
 
       // Nhịp nhấp nháy của đèn LED phụ (LED_PIN) vẫn chạy đồng bộ
-      if (currentMillis - previousMillis >= sirenPattern[patternIndex])
+      if (currentMillis - previousMillis >= patternStyle1[patternIndex % lengthStyle1])
       {
         previousMillis = currentMillis;
-        patternIndex = (patternIndex + 1) % patternLength;
+        patternIndex = (patternIndex + 1) % lengthStyle1;
         digitalWrite(LED_PIN, (patternIndex % 2 == 0) ? LED_ON_LEVEL : LED_OFF_LEVEL);
       }
     }
     else
     {
-      // Nhịp nhấp nháy cho cả còi chủ động (Active Buzzer) kêu tít tít dồn dập kịch tính
-      if (currentMillis - previousMillis >= sirenPattern[patternIndex])
+      // Chọn nhịp điệu theo SIREN_STYLE cho Còi chủ động (Active Buzzer)
+      const unsigned long* activePattern = patternStyle1;
+      int activeLength = lengthStyle1;
+
+      if (SIREN_STYLE == 2) {
+        activePattern = patternStyle2;
+        activeLength = lengthStyle2;
+      } else if (SIREN_STYLE == 3) {
+        activePattern = patternStyle3;
+        activeLength = lengthStyle3;
+      } else if (SIREN_STYLE == 4) {
+        activePattern = patternStyle4;
+        activeLength = lengthStyle4;
+      }
+
+      if (currentMillis - previousMillis >= activePattern[patternIndex % activeLength])
       {
         previousMillis = currentMillis;
-        patternIndex = (patternIndex + 1) % patternLength;
+        patternIndex = (patternIndex + 1) % activeLength;
 
         bool isOn = (patternIndex % 2 == 0);
         digitalWrite(LED_PIN, isOn ? LED_ON_LEVEL : LED_OFF_LEVEL);
