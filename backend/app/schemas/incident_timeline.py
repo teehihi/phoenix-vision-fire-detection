@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -6,18 +7,18 @@ from app.models.incident_timeline import IncidentEventType, IncidentRiskLevel
 
 
 class IncidentTimelineEventCreate(BaseModel):
-    camera_id: str = Field(default="webcam-0", validation_alias="cameraId")
-    event_type: IncidentEventType = Field(validation_alias="eventType")
+    camera_id: Annotated[str, Field(validation_alias="cameraId")] = "webcam-0"
+    event_type: Annotated[IncidentEventType, Field(validation_alias="eventType")]
     title: str
     description: str
-    risk_level: IncidentRiskLevel = Field(validation_alias="riskLevel")
+    risk_level: Annotated[IncidentRiskLevel, Field(validation_alias="riskLevel")]
     confidence: float | None = None
-    risk_score: float | None = Field(default=None, validation_alias="riskScore")
-    fire_area_ratio: float | None = Field(default=None, validation_alias="fireAreaRatio")
-    smoke_area_ratio: float | None = Field(default=None, validation_alias="smokeAreaRatio")
-    human_at_risk: bool = Field(default=False, validation_alias="humanAtRisk")
-    humans_nearby_count: int = Field(default=0, validation_alias="humansNearbyCount")
-    snapshot_url: str | None = Field(default=None, validation_alias="snapshotUrl")
+    risk_score: Annotated[float | None, Field(validation_alias="riskScore")] = None
+    fire_area_ratio: Annotated[float | None, Field(validation_alias="fireAreaRatio")] = None
+    smoke_area_ratio: Annotated[float | None, Field(validation_alias="smokeAreaRatio")] = None
+    human_at_risk: Annotated[bool, Field(validation_alias="humanAtRisk")] = False
+    humans_nearby_count: Annotated[int, Field(validation_alias="humansNearbyCount")] = 0
+    snapshot_url: Annotated[str | None, Field(validation_alias="snapshotUrl")] = None
     metadata: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
 
     model_config = ConfigDict(populate_by_name=True)

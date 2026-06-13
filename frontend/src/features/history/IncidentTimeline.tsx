@@ -150,6 +150,16 @@ export function IncidentTimeline() {
               highlighted={highlightedIncidentId === incident.id}
               onToggle={() => setExpandedIncidentId((current) => current === incident.id ? null : incident.id)}
               onDeleteEvent={handleDeleteEvent}
+              onDeleteGroup={async () => {
+                if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ sự kiện trong incident này?')) {
+                  try {
+                    await Promise.all(incident.events.map((eventItem) => deleteTimelineEvent(eventItem.id)));
+                    loadEvents();
+                  } catch {
+                    alert('Không thể xóa nhóm sự kiện.');
+                  }
+                }
+              }}
             />
           )) : (
             <EmptyTimeline />
@@ -166,19 +176,21 @@ function IncidentGroupCard({
   highlighted,
   onToggle,
   onDeleteEvent,
+  onDeleteGroup,
 }: {
   incident: ReturnType<typeof groupIncidentTimeline>[number];
   expanded: boolean;
   highlighted: boolean;
   onToggle: () => void;
   onDeleteEvent: (eventId: string) => Promise<void> | void;
+  onDeleteGroup: () => void;
 }) {
   const leadEvent = incident.events[0];
   const Icon = incident.humanAtRisk ? ShieldAlert : leadEvent.eventType === 'snapshot' ? Camera : incident.riskLevel === 'LOW' ? Clock : Flame;
 
   return (
     <article className={`rounded-lg border p-4 transition ${highlighted ? 'border-orange-300 bg-orange-50/40' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'}`}>
-      <div className="grid gap-4 md:grid-cols-[1fr_180px]">
+      <div className="grid gap-4 md:grid-cols-[1fr_180px_100px] items-center">
         <div className="flex gap-3">
           <div className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full ring-1 ${riskClasses[incident.riskLevel]}`}>
             <Icon size={18} />
@@ -204,32 +216,53 @@ function IncidentGroupCard({
         </div>
 
         {incident.snapshotUrl ? (
-          <SecureStorageImage source={incident.snapshotUrl} alt={incident.title} className="h-28 w-full rounded-md object-cover md:h-full" />
+          <SecureStorageImage source={incident.snapshotUrl} alt={incident.title} className="h-20 w-full rounded-md object-cover md:h-full" />
         ) : (
-          <div className="hidden items-center justify-center rounded-md bg-slate-100 text-slate-400 md:flex">
+          <div className="hidden items-center justify-center rounded-md bg-slate-100 text-slate-400 md:flex h-20">
             <AlertTriangle size={20} />
           </div>
         )}
+
+        <div className="flex items-center justify-end shrink-0">
+          <button
+            type="button"
+            onClick={onDeleteGroup}
+            className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 hover:border-rose-200 active:scale-95"
+            title="Xóa toàn bộ incident"
+          >
+            <Trash2 size={13} />
+            Xóa nhóm
+          </button>
+        </div>
       </div>
 
       {expanded ? (
         <div className="mt-4 space-y-3 border-t border-slate-200 pt-4">
           {incident.events.map((event) => (
-            <div key={event.id} className="grid gap-3 rounded-lg border border-slate-200 bg-white p-3 md:grid-cols-[1fr_80px]">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-semibold text-slate-900">{event.title}</p>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${riskClasses[event.riskLevel]}`}>{event.riskLevel}</span>
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{event.eventType}</span>
-                </div>
-                <p className="mt-1 text-sm text-slate-600">{event.description}</p>
-                <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
-                  <span>{new Date(event.createdAt).toLocaleString()}</span>
-                  {event.confidence != null ? <span>Confidence {(event.confidence * 100).toFixed(0)}%</span> : null}
-                  {event.riskScore != null ? <span>Risk {event.riskScore.toFixed(0)}/100</span> : null}
+            <div key={event.id} className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 md:flex-row md:items-center md:justify-between animate-fadeIn">
+              <div className="min-w-0 flex-1 flex items-start gap-3">
+                {event.snapshotUrl ? (
+                  <SecureStorageImage
+                    source={event.snapshotUrl}
+                    alt={event.title}
+                    className="h-12 w-16 shrink-0 rounded object-cover border border-slate-100 shadow-sm"
+                  />
+                ) : null}
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-semibold text-slate-900">{event.title}</p>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${riskClasses[event.riskLevel]}`}>{event.riskLevel}</span>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{event.eventType}</span>
+                  </div>
+                  <p className="mt-1 text-sm text-slate-600">{event.description}</p>
+                  <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
+                    <span>{new Date(event.createdAt).toLocaleString()}</span>
+                    {event.confidence != null ? <span>Confidence {(event.confidence * 100).toFixed(0)}%</span> : null}
+                    {event.riskScore != null ? <span>Risk {event.riskScore.toFixed(0)}/100</span> : null}
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center justify-end">
+              <div className="flex items-center justify-end shrink-0">
                 <button
                   type="button"
                   onClick={() => onDeleteEvent(event.id)}

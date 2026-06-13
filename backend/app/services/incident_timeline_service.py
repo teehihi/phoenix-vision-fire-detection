@@ -49,11 +49,12 @@ class IncidentTimelineService:
         )
         return self.repository.add(user_id, event)
 
-    def create_from_emergency(self, user_id: str, event: EmergencyEvent) -> IncidentTimelineEvent:
-        incident_id = event.id
-        existing_status = emergency_repository.get_status(user_id, event.camera_id)
-        if existing_status.active_event_id:
-            incident_id = existing_status.active_event_id
+    def create_from_emergency(self, user_id: str, event: EmergencyEvent, incident_id: str | None = None) -> IncidentTimelineEvent:
+        if not incident_id:
+            incident_id = event.id
+            existing_status = emergency_repository.get_status(user_id, event.camera_id)
+            if existing_status.active_event_id:
+                incident_id = existing_status.active_event_id
 
         timeline_event = IncidentTimelineEvent(
             camera_id=event.camera_id,

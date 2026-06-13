@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -6,11 +7,11 @@ from app.models.emergency import EmergencyState
 
 
 class EmergencyEventCreate(BaseModel):
-    camera_id: str = Field(default="webcam-0", validation_alias="cameraId")
-    risk_level: str = Field(validation_alias="riskLevel")
-    risk_score: float = Field(validation_alias="riskScore")
-    human_at_risk: bool = Field(default=False, validation_alias="humanAtRisk")
-    snapshot_url: str | None = Field(default=None, validation_alias="snapshotUrl")
+    camera_id: Annotated[str, Field(validation_alias="cameraId")] = "webcam-0"
+    risk_level: Annotated[str, Field(validation_alias="riskLevel")]
+    risk_score: Annotated[float, Field(validation_alias="riskScore")]
+    human_at_risk: Annotated[bool, Field(validation_alias="humanAtRisk")] = False
+    snapshot_url: Annotated[str | None, Field(validation_alias="snapshotUrl")] = None
     message: str | None = None
 
     model_config = ConfigDict(populate_by_name=True)

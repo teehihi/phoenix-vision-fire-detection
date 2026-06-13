@@ -7,6 +7,7 @@ import { AlertCircle, ChevronDown, ChevronRight, Siren, CheckCircle2, Trash2 } f
 import { useTranslation } from '../../lib/i18n';
 import { IoTDeviceStatus } from '../detection/IoTDeviceStatus';
 import { groupAlertsByIncident, groupIncidentTimeline, type GroupedAlertIncident } from '../history/incidentGrouping';
+import { SecureStorageImage } from '../../components/ui/SecureStorageImage';
 
 export function AlertsPage() {
   const { t } = useTranslation();
@@ -163,11 +164,11 @@ function AlertIncidentCard({
       }`}
     >
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
           <div className={`mt-0.5 rounded-lg p-2.5 ${isCritical ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-600'}`}>
             <AlertCircle size={20} />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" onClick={onToggle} className="inline-flex min-w-0 items-center gap-1 text-left font-semibold text-slate-900 hover:text-cyan-700">
                 {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
@@ -196,6 +197,14 @@ function AlertIncidentCard({
           </div>
         </div>
 
+        {incident.snapshotUrl ? (
+          <SecureStorageImage
+            source={incident.snapshotUrl}
+            alt={incident.title}
+            className="h-16 w-24 shrink-0 rounded-lg object-cover border border-slate-100 shadow-sm"
+          />
+        ) : null}
+
         <button
           type="button"
           onClick={onDeleteGroup}
@@ -210,21 +219,30 @@ function AlertIncidentCard({
       {expanded ? (
         <div className="mt-4 space-y-2 border-t border-slate-200 pt-4">
           {incident.alerts.map((alertItem) => (
-            <div key={alertItem.id} className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-semibold text-slate-900">{alertItem.title}</p>
-                  <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold uppercase ${severityStyles[alertItem.severity] || 'bg-slate-50 text-slate-600 border-slate-200'}`}>
-                    {alertItem.severity}
-                  </span>
-                  {alertItem.occurrenceCount > 1 ? (
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{alertItem.occurrenceCount} lần</span>
-                  ) : null}
+            <div key={alertItem.id} className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between animate-fadeIn">
+              <div className="min-w-0 flex-1 flex items-start gap-3">
+                {alertItem.snapshotUrl ? (
+                  <SecureStorageImage
+                    source={alertItem.snapshotUrl}
+                    alt={alertItem.title}
+                    className="h-12 w-16 shrink-0 rounded object-cover border border-slate-100 shadow-sm"
+                  />
+                ) : null}
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-semibold text-slate-900">{alertItem.title}</p>
+                    <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold uppercase ${severityStyles[alertItem.severity] || 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                      {alertItem.severity}
+                    </span>
+                    {alertItem.occurrenceCount > 1 ? (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{alertItem.occurrenceCount} lần</span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 text-sm text-slate-600">{alertItem.message}</p>
+                  <p className="mt-2 text-xs text-slate-400">
+                    {new Date(alertItem.createdAt).toLocaleString('vi-VN')} - gần nhất {new Date(alertItem.lastSeenAt).toLocaleString('vi-VN')}
+                  </p>
                 </div>
-                <p className="mt-1 text-sm text-slate-600">{alertItem.message}</p>
-                <p className="mt-2 text-xs text-slate-400">
-                  {new Date(alertItem.createdAt).toLocaleString('vi-VN')} - gần nhất {new Date(alertItem.lastSeenAt).toLocaleString('vi-VN')}
-                </p>
               </div>
               <button
                 type="button"

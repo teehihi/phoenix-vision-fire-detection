@@ -80,7 +80,7 @@ class EmergencyService:
             else current.snapshot_url
         )
         self.repository.add_event(user_id, event)
-        self.timeline_service.create_from_emergency(user_id, event)
+        self.timeline_service.create_from_emergency(user_id, event, incident_id)
 
         if next_state != EmergencyState.monitoring:
             from app.models.alert import Alert
@@ -162,6 +162,8 @@ class EmergencyService:
             return None
         event.acknowledged_at = datetime.utcnow()
         self.repository.save_event(user_id, event)
+        status = self.repository.get_status(user_id, event.camera_id)
+        incident_id = status.active_event_id or event.id
 
         # Log operator action to timeline
         from app.models.incident_timeline import IncidentEventType, IncidentRiskLevel
@@ -181,7 +183,7 @@ class EmergencyService:
                 snapshot_url=event.snapshot_url,
             metadata={
                 "emergencyEventId": event.id,
-                "incidentId": event.id,
+                "incidentId": incident_id,
                 "action": "acknowledge",
                 "operator": "system_operator"
             }
@@ -197,6 +199,7 @@ class EmergencyService:
         event.resolved_at = datetime.utcnow()
         self.repository.save_event(user_id, event)
         status = self.repository.get_status(user_id, event.camera_id)
+        incident_id = status.active_event_id or event.id
         self.repository.save_status(
             user_id,
             status.model_copy(
@@ -231,7 +234,7 @@ class EmergencyService:
                 snapshot_url=event.snapshot_url,
             metadata={
                 "emergencyEventId": event.id,
-                "incidentId": event.id,
+                "incidentId": incident_id,
                 "action": "resolve",
                 "operator": "system_operator"
             }
@@ -292,6 +295,7 @@ class EmergencyService:
         if event.acknowledged_at is None and event.resolved_at is None:
             # Check if this event is still the active event for the camera
             status = self.repository.get_status(user_id, event.camera_id)
+            incident_id = status.active_event_id or event.id
             if status.active_event_id == event_id and status.state in [EmergencyState.warning, EmergencyState.emergency]:
                 logger.warning(f"Event {event_id} remains unacknowledged after {delay_seconds} seconds. Automatically activating pump!")
                 try:
@@ -315,6 +319,7 @@ class EmergencyService:
                             snapshot_url=event.snapshot_url,
                             metadata={
                                 "emergencyEventId": event.id,
+                                "incidentId": incident_id,
                                 "action": "auto_pump",
                                 "operator": "system_auto"
                             }
