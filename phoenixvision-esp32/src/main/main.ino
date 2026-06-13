@@ -463,6 +463,7 @@ void stopAlarm()
   if (USE_PASSIVE_BUZZER)
   {
     noTone(BUZZER_PIN);
+    pinMode(BUZZER_PIN, OUTPUT); // Khôi phục OUTPUT vì noTone chuyển pin thành INPUT làm chân bị trôi (floating)
   }
   digitalWrite(
     BUZZER_PIN,
