@@ -28,7 +28,10 @@ backend/secrets/*
 *firebase-admin*.json
 phoenixvision-2105-*.json
 !backend/secrets/phoenixvision-firebase-admin.example.json
-
+backend/.env
+frontend/.env
+frontend/pnpm-lock.yaml
+frontend/pnpm-workspace.yaml
 # Models and media
 *.pt
 !ai-service/models/fire.pt
