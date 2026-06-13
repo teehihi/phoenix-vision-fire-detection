@@ -377,7 +377,7 @@ void updateAlarmAnimation()
   strip.show();
 }
 
-// Hiệu ứng 2: Tắt hết bóng, thỉnh thoảng chớp đỏ bóng số 0 báo hoạt động (Smoke Detector Blink)
+// Hiệu ứng 2: Tắt hết bóng, thỉnh thoảng chớp đỏ xen kẽ 1/2 số bóng báo hoạt động (Smoke Detector Blink)
 void updateSafeAnimation()
 {
   unsigned long now = millis();
@@ -388,11 +388,17 @@ void updateSafeAnimation()
 
   if (m < 80) // Chỉ chớp đỏ trong 80ms đầu tiên của chu kỳ 4s
   {
-    // Chớp LED đỏ ở pixel số 0
-    strip.setPixelColor(0, strip.Color(180, 0, 0)); 
-    for (uint16_t i = 1; i < strip.numPixels(); i++)
+    // Chớp đỏ xen kẽ 1/2 số bóng (chỉ sáng bóng chẵn: 0, 2, 4, 6)
+    for (uint16_t i = 0; i < strip.numPixels(); i++)
     {
-      strip.setPixelColor(i, strip.Color(0, 0, 0));
+      if (i % 2 == 0)
+      {
+        strip.setPixelColor(i, strip.Color(180, 0, 0)); // Màu đỏ vừa phải
+      }
+      else
+      {
+        strip.setPixelColor(i, strip.Color(0, 0, 0));
+      }
     }
   }
   else
