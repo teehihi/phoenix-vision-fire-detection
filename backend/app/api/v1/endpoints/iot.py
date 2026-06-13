@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -12,6 +12,10 @@ class IotRegisterPayload(BaseModel):
     ip: str
 
 
+class AlarmTriggerPayload(BaseModel):
+    level: Optional[str] = "medium"
+
+
 @router.get("/status", response_model=Dict[str, Any])
 async def get_iot_status() -> Dict[str, Any]:
     """
@@ -21,11 +25,14 @@ async def get_iot_status() -> Dict[str, Any]:
 
 
 @router.post("/alarm", response_model=Dict[str, Any])
-async def trigger_iot_alarm() -> Dict[str, Any]:
+async def trigger_iot_alarm(payload: Optional[AlarmTriggerPayload] = None) -> Dict[str, Any]:
     """
     Send a command to trigger the alarm on the ESP32 IoT device.
     """
-    return await esp32_client.trigger_alarm()
+    level = "medium"
+    if payload and payload.level:
+        level = payload.level
+    return await esp32_client.trigger_alarm(level)
 
 
 @router.post("/stop", response_model=Dict[str, Any])

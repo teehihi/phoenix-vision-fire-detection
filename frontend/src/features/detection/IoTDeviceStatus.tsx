@@ -6,6 +6,7 @@ type IotStatus = {
   online: boolean;
   alarm: boolean;
   pump: boolean;
+  alarm_level?: string;
 };
 
 export function IoTDeviceStatus() {
@@ -13,6 +14,7 @@ export function IoTDeviceStatus() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [testLevel, setTestLevel] = useState<string>('medium');
 
   useEffect(() => {
     let isMounted = true;
@@ -44,11 +46,11 @@ export function IoTDeviceStatus() {
     };
   }, []);
 
-  async function handleTestAlarm() {
+  async function handleTestAlarm(level: string = 'medium') {
     setActionLoading(true);
     try {
-      const data = await triggerIotAlarm();
-      setStatus((prev) => prev ? { ...prev, alarm: data.alarm } : null);
+      const data = await triggerIotAlarm(level);
+      setStatus((prev) => prev ? { ...prev, alarm: data.alarm, alarm_level: level } : null);
     } catch {
       // Ignore
     } finally {
@@ -121,9 +123,15 @@ export function IoTDeviceStatus() {
 
       <div className="flex items-center gap-2 px-3">
         {isAlarming ? (
-          <div className="flex items-center gap-1.5 text-sm font-medium text-orange-600 animate-pulse">
-            <Bell size={14} />
-            Đang báo động
+          <div className={`flex items-center gap-1.5 text-sm font-semibold animate-pulse ${
+            status?.alarm_level === 'medium' ? 'text-amber-600' :
+            status?.alarm_level === 'high' ? 'text-orange-600' :
+            'text-rose-600 font-bold text-red-600'
+          }`}>
+            <Bell size={14} className={status?.alarm_level === 'critical' ? 'animate-bounce' : ''} />
+            {status?.alarm_level === 'medium' ? 'Cảnh báo vừa' :
+             status?.alarm_level === 'high' ? 'Báo động lớn' :
+             'KHẨN CẤP! BÁO ĐỘNG'}
           </div>
         ) : (
           <div className="flex items-center gap-1.5 text-sm text-slate-500">
@@ -135,14 +143,26 @@ export function IoTDeviceStatus() {
         <div className="ml-2 h-4 w-px bg-slate-200" />
 
         <div className="ml-2 flex items-center gap-1.5">
-          <button
-            onClick={handleTestAlarm}
-            disabled={!isOnline || actionLoading}
-            className="inline-flex h-7 items-center justify-center gap-1.5 rounded-lg bg-orange-50 px-3 text-xs font-semibold text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {actionLoading && !isAlarming ? <LoaderCircle size={12} className="animate-spin" /> : <Bell size={12} />}
-            Test Còi
-          </button>
+          <div className="flex items-center gap-1">
+            <select
+              value={testLevel}
+              onChange={(e) => setTestLevel(e.target.value)}
+              disabled={!isOnline || actionLoading}
+              className="h-7 rounded-lg border border-slate-200 bg-white px-1.5 text-[11px] font-semibold text-slate-700 outline-none hover:border-slate-300 focus:border-orange-300 disabled:opacity-50"
+            >
+              <option value="medium">Mức vừa</option>
+              <option value="high">Mức cao</option>
+              <option value="critical">Khẩn cấp</option>
+            </select>
+            <button
+              onClick={() => handleTestAlarm(testLevel)}
+              disabled={!isOnline || actionLoading}
+              className="inline-flex h-7 items-center justify-center gap-1 rounded-lg bg-orange-50 px-2.5 text-xs font-semibold text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {actionLoading && !isAlarming ? <LoaderCircle size={12} className="animate-spin" /> : <Bell size={12} />}
+              Test Còi
+            </button>
+          </div>
           
           <button
             onClick={handleTogglePump}

@@ -167,12 +167,12 @@ export async function verifyRegistrationOtp(email: string, otp: string, challeng
 }
 
 export async function getIotStatus() {
-  const response = await api.get<{ device: string; online: boolean; alarm: boolean; pump: boolean }>('/iot/status');
+  const response = await api.get<{ device: string; online: boolean; alarm: boolean; alarm_level?: string; pump: boolean }>('/iot/status');
   return response.data;
 }
 
-export async function triggerIotAlarm() {
-  const response = await api.post<{ success: boolean; alarm: boolean }>('/iot/alarm');
+export async function triggerIotAlarm(level?: string) {
+  const response = await api.post<{ success: boolean; alarm: boolean; level?: string }>('/iot/alarm', { level });
   return response.data;
 }
 

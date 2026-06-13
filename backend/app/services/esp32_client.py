@@ -64,9 +64,9 @@ class Esp32Client:
         """Get the current status of the ESP32."""
         return await self._request("GET", "/status")
 
-    async def trigger_alarm(self) -> Dict[str, Any]:
-        """Trigger the alarm on the ESP32."""
-        return await self._request("GET", "/alarm")
+    async def trigger_alarm(self, level: str = "medium") -> Dict[str, Any]:
+        """Trigger the alarm on the ESP32 with a specific level (medium, high, critical)."""
+        return await self._request("GET", f"/alarm?level={level}")
 
     async def stop_alarm(self) -> Dict[str, Any]:
         """Stop the alarm on the ESP32."""

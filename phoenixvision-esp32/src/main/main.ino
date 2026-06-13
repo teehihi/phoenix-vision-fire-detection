@@ -52,6 +52,17 @@ WebServer server(HTTP_PORT);
 
 bool alarmActive = false;
 bool pumpActive = false;
+String alarmLevel = "medium";
+
+// Nhịp còi cho Còi chủ động (Active Buzzer) theo cấp độ:
+const unsigned long patternMedium[] = { 300, 700 };
+const int lengthMedium = 2;
+
+const unsigned long patternHigh[] = { 150, 150, 150, 550 };
+const int lengthHigh = 4;
+
+const unsigned long patternCritical[] = { 80, 80, 80, 80, 80, 80, 400, 200 };
+const int lengthCritical = 8;
 
 /* =========================
    SIREN CONFIG & PATTERNS
@@ -123,6 +134,10 @@ String getStatusJson()
   response += "\"alarm\":";
   response += alarmActive ? "true" : "false";
   response += ",";
+
+  response += "\"alarm_level\":\"";
+  response += alarmLevel;
+  response += "\",";
 
   response += "\"pump\":";
   response += pumpActive ? "true" : "false";
@@ -346,57 +361,100 @@ void setRingColor(uint8_t r, uint8_t g, uint8_t b)
   strip.show();
 }
 
-// Hiệu ứng 1: Còi cứu hỏa đỏ xanh (Xoay tròn đỏ xanh dương + Chớp tắt trắng đỏ nhịp cuối)
+// Hiệu ứng còi báo động theo cấp độ
 void updateAlarmAnimation()
 {
   unsigned long now = millis();
-  if (now - lastLedUpdate < 45) return; // Quay mỗi 45ms mượt mà
-  lastLedUpdate = now;
-
-  uint16_t numLeds = strip.numPixels();
-  animFrame = (animFrame + 1) % 12; // Chu kỳ 12 bước
-
-  if (animFrame >= 8) // Bước nhịp cuối (bước 8 -> 11): Chớp trắng & đỏ cường độ cao (Strobe Flash)
+  
+  if (alarmLevel == "medium")
   {
-    if (animFrame % 2 == 0)
+    // Hiệu ứng thở (breathing) màu Cam
+    if (now - lastLedUpdate < 15) return;
+    lastLedUpdate = now;
+    
+    // Nhịp chu kỳ thở dài tầm 2.5 giây (2500ms)
+    float pulse = (sin(now / 400.0) + 1.0) / 2.0; // Giá trị từ 0.0 đến 1.0
+    uint8_t r = (uint8_t)(pulse * 255.0);
+    uint8_t g = (uint8_t)(pulse * 100.0); // Màu cam rực
+    uint8_t b = 0;
+    
+    for (uint16_t i = 0; i < strip.numPixels(); i++)
     {
-      // Tất cả sáng trắng chói lòa
-      for (uint16_t i = 0; i < numLeds; i++) {
-        strip.setPixelColor(i, strip.Color(255, 255, 255));
-      }
+      strip.setPixelColor(i, strip.Color(r, g, b));
     }
-    else
-    {
-      // Tất cả sáng đỏ rực
-      for (uint16_t i = 0; i < numLeds; i++) {
-        strip.setPixelColor(i, strip.Color(255, 0, 0));
-      }
-    }
+    strip.show();
   }
-  else // Bước 0 -> 7: Đỏ và Xanh dương xoay tròn đối xứng nhau
+  else if (alarmLevel == "high")
   {
-    uint16_t head = animFrame % numLeds;
+    // Đuổi màu Vàng và Đỏ
+    if (now - lastLedUpdate < 100) return; // Quay mỗi 100ms
+    lastLedUpdate = now;
+    
+    uint16_t numLeds = strip.numPixels();
+    animFrame = (animFrame + 1) % numLeds;
+    
     for (uint16_t i = 0; i < numLeds; i++)
     {
-      // Tính vị trí tương đối so với head đỏ và đối diện xanh dương
-      int diffRed = (i - head + numLeds) % numLeds;
-      int diffBlue = (i - (head + numLeds / 2) + numLeds) % numLeds;
-
-      if (diffRed == 0 || diffRed == 1)
-      {
-        strip.setPixelColor(i, strip.Color(255, 0, 0));    // Một nửa màu Đỏ
+      // Xen kẽ các bóng LED Vàng (255, 200, 0) và Đỏ (255, 0, 0) đuổi nhau
+      if ((i + animFrame) % 2 == 0) {
+        strip.setPixelColor(i, strip.Color(255, 200, 0)); // Vàng
+      } else {
+        strip.setPixelColor(i, strip.Color(255, 0, 0));   // Đỏ
       }
-      else if (diffBlue == 0 || diffBlue == 1)
+    }
+    strip.show();
+  }
+  else // critical
+  {
+    // Còi cứu hỏa đỏ xanh (Xoay tròn đỏ xanh dương + Chớp tắt trắng đỏ nhịp cuối)
+    if (now - lastLedUpdate < 45) return; // Quay mỗi 45ms mượt mà
+    lastLedUpdate = now;
+  
+    uint16_t numLeds = strip.numPixels();
+    animFrame = (animFrame + 1) % 12; // Chu kỳ 12 bước
+  
+    if (animFrame >= 8) // Bước nhịp cuối (bước 8 -> 11): Chớp trắng & đỏ cường độ cao (Strobe Flash)
+    {
+      if (animFrame % 2 == 0)
       {
-        strip.setPixelColor(i, strip.Color(0, 0, 255));    // Một nửa màu Xanh Dương
+        // Tất cả sáng trắng chói lòa
+        for (uint16_t i = 0; i < numLeds; i++) {
+          strip.setPixelColor(i, strip.Color(255, 255, 255));
+        }
       }
       else
       {
-        strip.setPixelColor(i, strip.Color(0, 0, 0));      // Bóng còn lại tắt
+        // Tất cả sáng đỏ rực
+        for (uint16_t i = 0; i < numLeds; i++) {
+          strip.setPixelColor(i, strip.Color(255, 0, 0));
+        }
       }
     }
+    else // Bước 0 -> 7: Đỏ và Xanh dương xoay tròn đối xứng nhau
+    {
+      uint16_t head = animFrame % numLeds;
+      for (uint16_t i = 0; i < numLeds; i++)
+      {
+        // Tính vị trí tương đối so với head đỏ và đối diện xanh dương
+        int diffRed = (i - head + numLeds) % numLeds;
+        int diffBlue = (i - (head + numLeds / 2) + numLeds) % numLeds;
+  
+        if (diffRed == 0 || diffRed == 1)
+        {
+          strip.setPixelColor(i, strip.Color(255, 0, 0));    // Một nửa màu Đỏ
+        }
+        else if (diffBlue == 0 || diffBlue == 1)
+        {
+          strip.setPixelColor(i, strip.Color(0, 0, 255));    // Một nửa màu Xanh Dương
+        }
+        else
+        {
+          strip.setPixelColor(i, strip.Color(0, 0, 0));      // Bóng còn lại tắt
+        }
+      }
+    }
+    strip.show();
   }
-  strip.show();
 }
 
 // Hiệu ứng 2: Tắt hết bóng, thỉnh thoảng chớp đỏ xen kẽ 1/2 số bóng báo hoạt động (Smoke Detector Blink)
@@ -434,8 +492,15 @@ void updateSafeAnimation()
   strip.show();
 }
 
-void startAlarm()
+void startAlarm(String level = "medium")
 {
+  level.toLowerCase();
+  if (level == "medium" || level == "high" || level == "critical") {
+    alarmLevel = level;
+  } else {
+    alarmLevel = "medium";
+  }
+
   if (alarmActive)
     return;
 
@@ -457,7 +522,7 @@ void startAlarm()
   );
 
   Serial.println(
-    "[INFO] Alarm ON"
+    "[INFO] Alarm ON (Level: " + alarmLevel + ")"
   );
 }
 
@@ -515,11 +580,17 @@ void setupRoutes()
 
   server.on("/alarm", HTTP_GET, []()
   {
-    startAlarm();
+    String level = "medium";
+    if (server.hasArg("level"))
+    {
+      level = server.arg("level");
+    }
+    
+    startAlarm(level);
 
     sendJson(
       200,
-      "{\"success\":true}"
+      "{\"success\":true,\"level\":\"" + alarmLevel + "\"}"
     );
   });
 
@@ -636,85 +707,56 @@ void loop()
     if (USE_PASSIVE_BUZZER)
     {
       int freq = 1000;
-      
-      if (SIREN_STYLE == 1) // Wail (Còi hú cứu hỏa quét chậm - Cực kỳ kịch tính)
+      if (alarmLevel == "medium")
       {
-        unsigned long cycle = currentMillis % 1500; // Chu kỳ quét 1.5s
-        if (cycle < 750) {
-          freq = 1200 + (cycle * 1500 / 750); // 1200Hz -> 2700Hz
+        unsigned long cycle = currentMillis % 1000;
+        if (cycle < 300) {
+          tone(BUZZER_PIN, 1200);
         } else {
-          freq = 2700 - ((cycle - 750) * 1500 / 750); // 2700Hz -> 1200Hz
+          noTone(BUZZER_PIN);
+          pinMode(BUZZER_PIN, OUTPUT);
+          digitalWrite(BUZZER_PIN, BUZZER_OFF_LEVEL);
         }
-        tone(BUZZER_PIN, freq);
       }
-      else if (SIREN_STYLE == 2) // Yelp (Còi hú cảnh sát quét cực nhanh)
+      else if (alarmLevel == "high")
       {
-        unsigned long cycle = currentMillis % 300; // Chu kỳ quét 300ms
+        unsigned long cycle = currentMillis % 800;
+        if (cycle < 400) {
+          tone(BUZZER_PIN, 1800);
+        } else {
+          tone(BUZZER_PIN, 2400);
+        }
+      }
+      else // critical
+      {
+        unsigned long cycle = currentMillis % 300;
         if (cycle < 150) {
-          freq = 1500 + (cycle * 1300 / 150); // 1500Hz -> 2800Hz
+          freq = 1500 + (cycle * 1300 / 150);
         } else {
           freq = 2800 - ((cycle - 150) * 1300 / 150);
         }
         tone(BUZZER_PIN, freq);
       }
-      else if (SIREN_STYLE == 3) // Hi-Lo (Còi cứu thương Châu Âu)
-      {
-        unsigned long cycle = currentMillis % 800; // Chu kỳ 800ms
-        if (cycle < 400) {
-          freq = 2000; // 2000Hz (nốt Cao)
-        } else {
-          freq = 2600; // 2600Hz (nốt Rất Cao)
-        }
-        tone(BUZZER_PIN, freq);
-      }
-      else if (SIREN_STYLE == 4) // Temporal 3 (Báo cháy tiêu chuẩn ISO - tần số réo rắt 2700Hz)
-      {
-        unsigned long cycle = currentMillis % 4000; // Chu kỳ 4 giây
-        // Nhịp Temporal 3: Bíp 0.5s, Tắt 0.5s, Bíp 0.5s, Tắt 0.5s, Bíp 0.5s, Tắt 1.5s
-        if (cycle < 500) {
-          tone(BUZZER_PIN, 2700);
-        } else if (cycle < 1000) {
-          noTone(BUZZER_PIN);
-          pinMode(BUZZER_PIN, OUTPUT);
-          digitalWrite(BUZZER_PIN, BUZZER_OFF_LEVEL);
-        } else if (cycle < 1500) {
-          tone(BUZZER_PIN, 2700);
-        } else if (cycle < 2000) {
-          noTone(BUZZER_PIN);
-          pinMode(BUZZER_PIN, OUTPUT);
-          digitalWrite(BUZZER_PIN, BUZZER_OFF_LEVEL);
-        } else if (cycle < 2500) {
-          tone(BUZZER_PIN, 2700);
-        } else {
-          noTone(BUZZER_PIN);
-          pinMode(BUZZER_PIN, OUTPUT);
-          digitalWrite(BUZZER_PIN, BUZZER_OFF_LEVEL);
-        }
-      }
 
       // Nhịp nhấp nháy của đèn LED phụ (LED_PIN) vẫn chạy đồng bộ
-      if (currentMillis - previousMillis >= patternStyle1[patternIndex % lengthStyle1])
+      if (currentMillis - previousMillis >= 250)
       {
         previousMillis = currentMillis;
-        patternIndex = (patternIndex + 1) % lengthStyle1;
-        digitalWrite(LED_PIN, (patternIndex % 2 == 0) ? LED_ON_LEVEL : LED_OFF_LEVEL);
+        digitalWrite(LED_PIN, !digitalRead(LED_PIN));
       }
     }
     else
     {
-      // Chọn nhịp điệu theo SIREN_STYLE cho Còi chủ động (Active Buzzer)
-      const unsigned long* activePattern = patternStyle1;
-      int activeLength = lengthStyle1;
+      // Chọn nhịp điệu theo alarmLevel cho Còi chủ động (Active Buzzer)
+      const unsigned long* activePattern = patternMedium;
+      int activeLength = lengthMedium;
 
-      if (SIREN_STYLE == 2) {
-        activePattern = patternStyle2;
-        activeLength = lengthStyle2;
-      } else if (SIREN_STYLE == 3) {
-        activePattern = patternStyle3;
-        activeLength = lengthStyle3;
-      } else if (SIREN_STYLE == 4) {
-        activePattern = patternStyle4;
-        activeLength = lengthStyle4;
+      if (alarmLevel == "high") {
+        activePattern = patternHigh;
+        activeLength = lengthHigh;
+      } else if (alarmLevel == "critical") {
+        activePattern = patternCritical;
+        activeLength = lengthCritical;
       }
 
       if (currentMillis - previousMillis >= activePattern[patternIndex % activeLength])

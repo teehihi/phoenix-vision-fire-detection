@@ -124,20 +124,21 @@ class EmergencyService:
             try:
                 loop = asyncio.get_event_loop()
                 if next_state == EmergencyState.critical:
-                    # Critical: Alarm ON + Pump ON immediately
+                    # Critical: Alarm ON (critical) + Pump ON immediately
                     if loop.is_running():
-                        loop.create_task(esp32_client.trigger_alarm())
+                        loop.create_task(esp32_client.trigger_alarm("critical"))
                         loop.create_task(esp32_client.trigger_pump(True))
                     else:
-                        loop.run_until_complete(esp32_client.trigger_alarm())
+                        loop.run_until_complete(esp32_client.trigger_alarm("critical"))
                         loop.run_until_complete(esp32_client.trigger_pump(True))
                 elif next_state in [EmergencyState.warning, EmergencyState.emergency]:
                     # Warning/Emergency: Alarm ON only (Pump OFF initially)
+                    level = "high" if next_state == EmergencyState.emergency else "medium"
                     if loop.is_running():
-                        loop.create_task(esp32_client.trigger_alarm())
+                        loop.create_task(esp32_client.trigger_alarm(level))
                         loop.create_task(esp32_client.trigger_pump(False))
                     else:
-                        loop.run_until_complete(esp32_client.trigger_alarm())
+                        loop.run_until_complete(esp32_client.trigger_alarm(level))
                         loop.run_until_complete(esp32_client.trigger_pump(False))
                     
                     # Schedule automatic pump trigger after delay
