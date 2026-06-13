@@ -60,7 +60,14 @@ bool pumpActive = false;
 // Cấu hình loại còi bạn đang sử dụng:
 // - true: Còi thụ động (Passive Buzzer) -> Tạo tiếng còi hú quét tần số kịch tính ("ú...ooo...ù")
 // - false: Còi chủ động (Active Buzzer) -> Nháy tít tít theo nhịp nâng cấp dồn dập
-constexpr bool USE_PASSIVE_BUZZER = false; 
+constexpr bool USE_PASSIVE_BUZZER = true; 
+
+// Các kiểu âm thanh cảnh báo (Dành riêng cho còi thụ động - USE_PASSIVE_BUZZER = true):
+// 1: Còi hú cứu hỏa truyền thống (Wail) - Quét chậm từ 1200Hz đến 2700Hz (Cực kỳ kịch tính!)
+// 2: Còi hú cảnh sát nhanh (Yelp) - Quét cực nhanh từ 1500Hz đến 3000Hz (Chói tai)
+// 3: Còi báo động hai âm sắc (Hi-Lo) - Kêu kiểu "tít...te...tít...te" ở tần số cao
+// 4: Còi cảnh báo cháy chuẩn ISO (Temporal 3) - 3 tiếng bíp chói tai ở tần số 2700Hz
+constexpr int SIREN_STYLE = 1;
 
 // Nhịp còi kịch tính mới (cho Còi chủ động): 3 nhịp tít nhanh + 1 tiếng hú kéo dài
 const unsigned long sirenPattern[] = {
@@ -619,15 +626,62 @@ void loop()
 
     if (USE_PASSIVE_BUZZER)
     {
-      // Tiếng còi hú cứu hỏa (quét tần số mịn từ 600Hz đến 1400Hz liên tục)
-      unsigned long cycle = currentMillis % 800; // Chu kỳ quét 800ms
-      int freq;
-      if (cycle < 400) {
-        freq = 600 + (cycle * 800 / 400); // Tần số tăng dần
-      } else {
-        freq = 1400 - ((cycle - 400) * 800 / 400); // Tần số giảm dần
+      int freq = 1000;
+      
+      if (SIREN_STYLE == 1) // Wail (Còi hú cứu hỏa quét chậm - Cực kỳ kịch tính)
+      {
+        unsigned long cycle = currentMillis % 1500; // Chu kỳ quét 1.5s
+        if (cycle < 750) {
+          freq = 1200 + (cycle * 1500 / 750); // 1200Hz -> 2700Hz
+        } else {
+          freq = 2700 - ((cycle - 750) * 1500 / 750); // 2700Hz -> 1200Hz
+        }
+        tone(BUZZER_PIN, freq);
       }
-      tone(BUZZER_PIN, freq);
+      else if (SIREN_STYLE == 2) // Yelp (Còi hú cảnh sát quét cực nhanh)
+      {
+        unsigned long cycle = currentMillis % 300; // Chu kỳ quét 300ms
+        if (cycle < 150) {
+          freq = 1500 + (cycle * 1300 / 150); // 1500Hz -> 2800Hz
+        } else {
+          freq = 2800 - ((cycle - 150) * 1300 / 150);
+        }
+        tone(BUZZER_PIN, freq);
+      }
+      else if (SIREN_STYLE == 3) // Hi-Lo (Còi cứu thương Châu Âu)
+      {
+        unsigned long cycle = currentMillis % 800; // Chu kỳ 800ms
+        if (cycle < 400) {
+          freq = 2000; // 2000Hz (nốt Cao)
+        } else {
+          freq = 2600; // 2600Hz (nốt Rất Cao)
+        }
+        tone(BUZZER_PIN, freq);
+      }
+      else if (SIREN_STYLE == 4) // Temporal 3 (Báo cháy tiêu chuẩn ISO - tần số réo rắt 2700Hz)
+      {
+        unsigned long cycle = currentMillis % 4000; // Chu kỳ 4 giây
+        // Nhịp Temporal 3: Bíp 0.5s, Tắt 0.5s, Bíp 0.5s, Tắt 0.5s, Bíp 0.5s, Tắt 1.5s
+        if (cycle < 500) {
+          tone(BUZZER_PIN, 2700);
+        } else if (cycle < 1000) {
+          noTone(BUZZER_PIN);
+          pinMode(BUZZER_PIN, OUTPUT);
+          digitalWrite(BUZZER_PIN, BUZZER_OFF_LEVEL);
+        } else if (cycle < 1500) {
+          tone(BUZZER_PIN, 2700);
+        } else if (cycle < 2000) {
+          noTone(BUZZER_PIN);
+          pinMode(BUZZER_PIN, OUTPUT);
+          digitalWrite(BUZZER_PIN, BUZZER_OFF_LEVEL);
+        } else if (cycle < 2500) {
+          tone(BUZZER_PIN, 2700);
+        } else {
+          noTone(BUZZER_PIN);
+          pinMode(BUZZER_PIN, OUTPUT);
+          digitalWrite(BUZZER_PIN, BUZZER_OFF_LEVEL);
+        }
+      }
 
       // Nhịp nhấp nháy của đèn LED phụ (LED_PIN) vẫn chạy đồng bộ
       if (currentMillis - previousMillis >= sirenPattern[patternIndex])
