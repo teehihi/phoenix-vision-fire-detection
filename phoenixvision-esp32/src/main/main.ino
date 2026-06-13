@@ -60,7 +60,7 @@ bool pumpActive = false;
 // Cấu hình loại còi bạn đang sử dụng:
 // - true: Còi thụ động (Passive Buzzer) -> Tạo tiếng còi hú quét tần số kịch tính ("ú...ooo...ù")
 // - false: Còi chủ động (Active Buzzer) -> Nháy tít tít theo nhịp nâng cấp dồn dập
-constexpr bool USE_PASSIVE_BUZZER = true; 
+constexpr bool USE_PASSIVE_BUZZER = false; 
 
 // Nhịp còi kịch tính mới (cho Còi chủ động): 3 nhịp tít nhanh + 1 tiếng hú kéo dài
 const unsigned long sirenPattern[] = {
