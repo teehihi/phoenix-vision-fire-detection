@@ -2,15 +2,20 @@
 #include <WebServer.h>
 #include <HTTPClient.h>
 #include <WiFiUdp.h>
+#include <Adafruit_NeoPixel.h>
 #include "secrets.h"
 
 /* =========================
    HARDWARE CONFIG
 ========================= */
 
-constexpr uint8_t LED_PIN = 2;
+constexpr uint8_t LED_PIN = 2;       // LED cũ (onboard hoặc LED đơn)
+constexpr uint8_t NEOPIXEL_PIN = 13; // Chân DI của vòng LED mới nối vào G13
+constexpr uint16_t LED_COUNT = 8;    // Số lượng bóng LED trên vòng
 constexpr uint8_t BUZZER_PIN = 4;
 constexpr uint8_t RELAY_PIN = 16;
+
+Adafruit_NeoPixel strip(LED_COUNT, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
 constexpr uint16_t HTTP_PORT = 80;
 
@@ -63,6 +68,8 @@ const int patternLength = 6;
 
 unsigned long previousMillis = 0;
 int patternIndex = 0;
+unsigned long lastLedUpdate = 0;
+uint16_t animFrame = 0;
 
 /* =========================
    HELPERS
@@ -308,6 +315,72 @@ void stopPump()
    ALARM
 ========================= */
 
+void setRingColor(uint8_t r, uint8_t g, uint8_t b)
+{
+  for (uint16_t i = 0; i < strip.numPixels(); i++)
+  {
+    strip.setPixelColor(i, strip.Color(r, g, b));
+  }
+  strip.show();
+}
+
+// Hiệu ứng 1: Còi báo cháy xoay tròn đỏ cam kiểu xe ưu tiên (Alarm Siren Spinner)
+void updateAlarmAnimation()
+{
+  unsigned long now = millis();
+  if (now - lastLedUpdate < 35) return; // Xoay vòng mỗi 35ms cực kỳ mượt
+  lastLedUpdate = now;
+
+  uint16_t numLeds = strip.numPixels();
+  animFrame = (animFrame + 1) % numLeds;
+
+  for (uint16_t i = 0; i < numLeds; i++)
+  {
+    int diff = (animFrame - i + numLeds) % numLeds;
+    if (diff == 0)
+    {
+      strip.setPixelColor(i, strip.Color(255, 0, 0)); // Đầu: Đỏ chói sáng
+    }
+    else if (diff == 1)
+    {
+      strip.setPixelColor(i, strip.Color(255, 75, 0)); // Đuôi 1: Cam sáng
+    }
+    else if (diff == 2)
+    {
+      strip.setPixelColor(i, strip.Color(200, 130, 0)); // Đuôi 2: Vàng cam
+    }
+    else if (diff == 3)
+    {
+      strip.setPixelColor(i, strip.Color(70, 40, 0)); // Đuôi 3: Vàng tối
+    }
+    else
+    {
+      strip.setPixelColor(i, strip.Color(0, 0, 0)); // Các bóng còn lại tắt
+    }
+  }
+  strip.show();
+}
+
+// Hiệu ứng 2: Nhịp thở chậm màu xanh lá cho trạng thái an toàn (Breathing Green)
+void updateSafeAnimation()
+{
+  unsigned long now = millis();
+  if (now - lastLedUpdate < 15) return; // Cập nhật chuyển động nhẹ mỗi 15ms
+  lastLedUpdate = now;
+
+  animFrame = (animFrame + 1) % 360;
+  float rad = animFrame * 3.14159 / 180.0;
+  float factor = 0.15 + 0.85 * ((sin(rad) + 1.0) / 2.0); // Hiệu ứng thở dùng hình sin
+
+  uint8_t greenVal = (uint8_t)(80 * factor); // Độ sáng max 80
+
+  for (uint16_t i = 0; i < strip.numPixels(); i++)
+  {
+    strip.setPixelColor(i, strip.Color(0, greenVal, 0));
+  }
+  strip.show();
+}
+
 void startAlarm()
 {
   if (alarmActive)
@@ -317,6 +390,8 @@ void startAlarm()
 
   patternIndex = 0;
   previousMillis = millis();
+  animFrame = 0;
+  lastLedUpdate = 0;
 
   digitalWrite(
     LED_PIN,
@@ -342,14 +417,16 @@ void stopAlarm()
     LED_OFF_LEVEL
   );
 
+  stopPump();
+
+  patternIndex = 0;
+  animFrame = 0;
+  lastLedUpdate = 0;
+
   digitalWrite(
     BUZZER_PIN,
     BUZZER_OFF_LEVEL
   );
-
-  stopPump();
-
-  patternIndex = 0;
 
   Serial.println(
     "[INFO] Alarm OFF"
@@ -442,6 +519,9 @@ void setup()
     OUTPUT
   );
 
+  strip.begin();
+  setRingColor(0, 100, 0); // Trạng thái bình thường/an toàn (màu xanh lá)
+
   pinMode(
     BUZZER_PIN,
     OUTPUT
@@ -491,6 +571,8 @@ void loop()
 
   if (alarmActive)
   {
+    updateAlarmAnimation();
+
     unsigned long currentMillis = millis();
 
     if (
@@ -529,6 +611,10 @@ void loop()
         );
       }
     }
+  }
+  else
+  {
+    updateSafeAnimation();
   }
 
   delay(2);
