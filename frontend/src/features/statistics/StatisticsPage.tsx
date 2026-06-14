@@ -85,12 +85,8 @@ export function StatisticsPage() {
   const isDanger = systemRiskLevel === 'HIGH' || systemRiskLevel === 'CRITICAL';
   const smokeDensity = systemRiskLevel === 'CRITICAL' ? 82 : systemRiskLevel === 'HIGH' ? 65 : systemRiskLevel === 'MEDIUM' ? 25 : 0;
   const activeIncidentCount = incidentGroups.filter((incident) => isRecentIncident(incident.endAt)).length;
-  const humanAtRisk = Boolean(status?.humanAtRisk) || timelineEvents.some((event) => isRecentEvent(event.createdAt) && event.humanAtRisk);
-  const currentRiskScore = Math.max(
-    status?.riskScore ?? 0,
-    ...timelineEvents.filter((event) => isRecentEvent(event.createdAt)).map((event) => event.riskScore ?? 0),
-    0,
-  );
+  const humanAtRisk = Boolean(status?.humanAtRisk);
+  const currentRiskScore = status?.riskScore ?? 0;
   const maxHourlyValue = Math.max(...hourlyData.map((item) => item.value), 1);
   const averageRisk = timelineEvents.length
     ? Math.round(timelineEvents.reduce((sum, event) => sum + (event.riskScore ?? 0), 0) / timelineEvents.length)
