@@ -89,8 +89,20 @@ export function LiveDetectionPage() {
     deleteCameras,
     setCamerasEnabled,
     primaryStream,
-    cameraRuntimes
+    cameraRuntimes,
+    localWebcamEnabled
   } = useCameraMonitoring();
+
+  const primaryRegistryItem = useMemo<CameraRegistryItem>(() => ({
+    id: 'webcam-0',
+    name: 'Webcam local',
+    location: 'Máy hiện tại',
+    zone: 'Nguồn kiểm thử',
+    source: 'webcam',
+    streamUrl: '',
+    enabled: localWebcamEnabled
+  }), [localWebcamEnabled]);
+
   const [selectedCameraId, setSelectedCameraId] = useState('webcam-0');
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [fullscreenCameraId, setFullscreenCameraId] = useState<string | null>(null);
@@ -103,13 +115,13 @@ export function LiveDetectionPage() {
   const [showFrameAiInfo, setShowFrameAiInfo] = useState(true);
   const cameras = useMemo(() => {
     return [
-      createPrimaryCamera(primaryStream.frame, primaryStream.state),
+      createPrimaryCamera(primaryStream.frame, primaryStream.state, localWebcamEnabled),
       ...registryCameras.map((camera) => {
         const runtime = cameraRuntimes[camera.id];
         return createRegistryCamera(camera, runtime?.frame ?? null, runtime?.state ?? 'idle');
       })
     ];
-  }, [primaryStream.frame, primaryStream.state, registryCameras, cameraRuntimes]);
+  }, [primaryStream.frame, primaryStream.state, registryCameras, cameraRuntimes, localWebcamEnabled]);
 
   const filteredCameras = cameras.filter((cameraItem) => {
     const target = `${cameraItem.name} ${cameraItem.location} ${cameraItem.zone}`.toLowerCase();
@@ -239,6 +251,7 @@ export function LiveDetectionPage() {
               setCameraPanel({ mode: 'edit', camera: selectedCamera });
             }}
             onDelete={() => handleDeleteCamera(selectedCamera)}
+            onToggleEnabled={(cameraId, enabled) => setCamerasEnabled([cameraId], enabled)}
           />
         ) : null}
       </section>
@@ -275,7 +288,7 @@ export function LiveDetectionPage() {
         ) : null}
         {managerOpen ? (
           <CameraManagerModal
-            cameras={registryCameras}
+            cameras={[primaryRegistryItem, ...registryCameras]}
             error={cameraMutationError}
             onClose={() => setManagerOpen(false)}
             onAdd={() => {
@@ -284,6 +297,7 @@ export function LiveDetectionPage() {
               setCameraPanel({ mode: 'create' });
             }}
             onEdit={(camera) => {
+              if (camera.id === 'webcam-0') return;
               const cameraItem = cameras.find((item) => item.id === camera.id);
               if (!cameraItem) return;
               setManagerOpen(false);
@@ -292,7 +306,10 @@ export function LiveDetectionPage() {
             }}
             onSetEnabled={setCamerasEnabled}
             onDelete={async (cameraIds) => {
-              await deleteCameras(cameraIds);
+              const registryIds = cameraIds.filter((id) => id !== 'webcam-0');
+              if (registryIds.length > 0) {
+                await deleteCameras(registryIds);
+              }
               if (cameraIds.includes(selectedCameraId)) {
                 setSelectedCameraId('webcam-0');
               }
@@ -338,9 +355,9 @@ export function LiveDetectionPage() {
   }
 }
 
-function createPrimaryCamera(frame: ProcessedFrameMessage | null, state: string): CameraItem {
+function createPrimaryCamera(frame: ProcessedFrameMessage | null, state: string, enabled: boolean): CameraItem {
   const risk = frame?.risk;
-  const status: CameraStatus = state === 'connected' ? 'online' : state === 'error' ? 'offline' : 'warning';
+  const status: CameraStatus = !enabled ? 'offline' : state === 'connected' ? 'online' : state === 'error' ? 'offline' : 'warning';
   const detections = frame?.detections ?? [];
 
   return {
@@ -352,12 +369,12 @@ function createPrimaryCamera(frame: ProcessedFrameMessage | null, state: string)
     status,
     riskLevel: risk?.riskLevel ?? 'LOW',
     riskScore: risk?.riskScore ?? 0,
-    fps: frame?.fps ?? 0,
-    lastSeen: frame ? 'Vừa xong' : 'Đang chờ frame',
+    fps: enabled ? frame?.fps ?? 0 : 0,
+    lastSeen: !enabled ? 'Đã tắt' : frame ? 'Vừa xong' : 'Đang chờ frame',
     fire: detections.filter((item) => item.label === 'fire').length,
     smoke: detections.filter((item) => item.label === 'smoke').length,
     streamUrl: '',
-    enabled: true,
+    enabled,
     isPrimary: true,
     frame
   };
@@ -613,7 +630,8 @@ function CameraInspector({
   streamError,
   onClose,
   onEdit,
-  onDelete
+  onDelete,
+  onToggleEnabled
 }: {
   cameraItem: CameraItem;
   streamState: string;
@@ -621,6 +639,7 @@ function CameraInspector({
   onClose: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onToggleEnabled: (cameraId: string, enabled: boolean) => void;
 }) {
   return (
     <aside className="h-fit rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -654,10 +673,28 @@ function CameraInspector({
       </div>
 
       <div className="mt-4 rounded-2xl border border-slate-200 p-4">
-        <p className="text-sm font-semibold text-slate-900">Trạng thái kết nối</p>
-        <div className="mt-3 flex items-center gap-2">
-          {cameraItem.status === 'offline' ? <WifiOff size={17} className="text-slate-500" /> : <Wifi size={17} className="text-emerald-600" />}
-          <span className="text-sm font-medium text-slate-700">{statusLabel[cameraItem.status]}</span>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">Trạng thái kết nối</p>
+            <div className="mt-2 flex items-center gap-2">
+              {cameraItem.status === 'offline' ? <WifiOff size={17} className="text-slate-500" /> : <Wifi size={17} className="text-emerald-600" />}
+              <span className="text-sm font-medium text-slate-700">{statusLabel[cameraItem.status]}</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onToggleEnabled(cameraItem.id, !cameraItem.enabled)}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 ${
+              cameraItem.enabled ? 'bg-orange-600' : 'bg-slate-200'
+            }`}
+            aria-label={cameraItem.enabled ? 'Tắt camera' : 'Bật camera'}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                cameraItem.enabled ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
         </div>
         {cameraItem.isPrimary ? (
           <p className="mt-2 text-xs leading-5 text-slate-500">{streamError ?? `WebSocket hiện tại: ${streamState}. Camera local là nguồn stream thật từ AI service.`}</p>
@@ -907,12 +944,16 @@ function CameraManagerModal({
   }
 
   async function deleteSelected(cameraIds: string[]) {
-    if (!cameraIds.length || !window.confirm(`Xóa ${cameraIds.length} camera đã chọn?`)) {
+    const idsToDelete = cameraIds.filter((id) => id !== 'webcam-0');
+    if (!idsToDelete.length) {
+      return;
+    }
+    if (!window.confirm(`Xóa ${idsToDelete.length} camera đã chọn?`)) {
       return;
     }
     await runMutation(async () => {
-      await onDelete(cameraIds);
-      setSelectedIds((current) => current.filter((id) => !cameraIds.includes(id)));
+      await onDelete(idsToDelete);
+      setSelectedIds((current) => current.filter((id) => !idsToDelete.includes(id)));
     });
   }
 
@@ -990,12 +1031,16 @@ function CameraManagerModal({
                     <button disabled={busy} onClick={() => runMutation(() => onSetEnabled([camera.id], !camera.enabled))} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40">
                       {camera.enabled ? 'Tắt' : 'Bật'}
                     </button>
-                    <button disabled={busy} onClick={() => onEdit(camera)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40">
-                      Sửa
-                    </button>
-                    <button disabled={busy} onClick={() => deleteSelected([camera.id])} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-40">
-                      Xóa
-                    </button>
+                    {camera.id !== 'webcam-0' ? (
+                      <>
+                        <button disabled={busy} onClick={() => onEdit(camera)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40">
+                          Sửa
+                        </button>
+                        <button disabled={busy} onClick={() => deleteSelected([camera.id])} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-40">
+                          Xóa
+                        </button>
+                      </>
+                    ) : null}
                   </div>
                 </article>
               ))}

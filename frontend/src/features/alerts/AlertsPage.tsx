@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
 import { EmergencyPanel } from '../emergency/EmergencyPanel';
 import { getAlerts, deleteAlert, clearAllAlerts, getIncidentTimeline } from '../../lib/apiClient';
 import type { AlertEvent, IncidentTimelineEvent } from '../../types/detection';
@@ -8,6 +9,8 @@ import { useTranslation } from '../../lib/i18n';
 import { IoTDeviceStatus } from '../detection/IoTDeviceStatus';
 import { groupAlertsByIncident, groupIncidentTimeline, type GroupedAlertIncident } from '../history/incidentGrouping';
 import { SecureStorageImage } from '../../components/ui/SecureStorageImage';
+import { ImageFullscreenModal, type FullscreenImageDetails } from '../../components/ui/ImageFullscreenModal';
+import { useCameraMonitoring } from '../detection/CameraMonitoringContext';
 
 export function AlertsPage() {
   const { t } = useTranslation();
@@ -16,6 +19,7 @@ export function AlertsPage() {
   const [expandedIncidentId, setExpandedIncidentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<{ src: string; details: FullscreenImageDetails } | null>(null);
 
   async function fetchAlerts() {
     try {
@@ -130,11 +134,18 @@ export function AlertsPage() {
                     alert('Không thể xóa nhóm cảnh báo.');
                   }
                 }}
+                onImageClick={(src, details) => setPreviewImage({ src, details })}
               />
             ))}
           </div>
         )}
       </div>
+
+      <AnimatePresence>
+        {previewImage ? (
+          <ImageFullscreenModal src={previewImage.src} details={previewImage.details} onClose={() => setPreviewImage(null)} />
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }
@@ -146,6 +157,7 @@ function AlertIncidentCard({
   onToggle,
   onDeleteAlert,
   onDeleteGroup,
+  onImageClick,
 }: {
   incident: GroupedAlertIncident;
   expanded: boolean;
@@ -153,7 +165,12 @@ function AlertIncidentCard({
   onToggle: () => void;
   onDeleteAlert: (alertId: string) => void;
   onDeleteGroup: () => void;
+  onImageClick: (url: string, details: FullscreenImageDetails) => void;
 }) {
+  const { registryCameras } = useCameraMonitoring();
+  const camera = registryCameras.find(cam => cam.id === incident.cameraId);
+  const location = camera?.location || (incident.cameraId === 'webcam-0' ? 'Máy hiện tại' : undefined);
+  const zone = camera?.zone || (incident.cameraId === 'webcam-0' ? 'Nguồn kiểm thử' : undefined);
   const isCritical = incident.severity === 'critical';
   const detailUrl = incident.timelineIncident ? `/history?incident=${incident.timelineIncident.id}` : '/history';
 
@@ -172,7 +189,7 @@ function AlertIncidentCard({
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" onClick={onToggle} className="inline-flex min-w-0 items-center gap-1 text-left font-semibold text-slate-900 hover:text-cyan-700">
                 {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                <span className="truncate">{incident.cameraId} - {incident.title}</span>
+                <span className="truncate">{camera?.name || (incident.cameraId === 'webcam-0' ? 'Webcam local' : incident.cameraId)} - {incident.title}</span>
               </button>
               <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold uppercase ${severityStyles[incident.severity] || 'bg-slate-50 text-slate-600 border-slate-200'}`}>
                 {incident.severity}
@@ -201,7 +218,24 @@ function AlertIncidentCard({
           <SecureStorageImage
             source={incident.snapshotUrl}
             alt={incident.title}
-            className="h-16 w-24 shrink-0 rounded-lg object-cover border border-slate-100 shadow-sm"
+            className="h-16 w-24 shrink-0 rounded-lg object-cover border border-slate-100 shadow-sm cursor-pointer hover:opacity-90 transition active:scale-[0.98]"
+            onClick={(e) => {
+              const confidenceEvent = incident.timelineIncident?.events.find((ev) => ev.confidence != null);
+              const riskScoreEvent = incident.timelineIncident?.events.find((ev) => ev.riskScore != null);
+              onImageClick(e.currentTarget.src, {
+                title: incident.title,
+                cameraId: incident.cameraId,
+                cameraName: camera?.name || (incident.cameraId === 'webcam-0' ? 'Webcam local' : undefined),
+                location,
+                zone,
+                riskLevel: incident.severity.toUpperCase(),
+                riskScore: riskScoreEvent?.riskScore ?? undefined,
+                confidence: confidenceEvent?.confidence ?? undefined,
+                time: `Bắt đầu: ${new Date(incident.startAt).toLocaleString('vi-VN')} · Gần nhất: ${new Date(incident.lastSeenAt).toLocaleString('vi-VN')}`,
+                description: incident.message,
+                humanAtRisk: incident.timelineIncident?.humanAtRisk
+              });
+            }}
           />
         ) : null}
 
@@ -225,7 +259,25 @@ function AlertIncidentCard({
                   <SecureStorageImage
                     source={alertItem.snapshotUrl}
                     alt={alertItem.title}
-                    className="h-12 w-16 shrink-0 rounded object-cover border border-slate-100 shadow-sm"
+                    className="h-12 w-16 shrink-0 rounded object-cover border border-slate-100 shadow-sm cursor-pointer hover:opacity-90 transition active:scale-[0.98]"
+                    onClick={(e) => {
+                      const correspondingEvent = incident.timelineIncident?.events.find(
+                        (ev) => ev.id === alertItem.detectionId
+                      );
+                      onImageClick(e.currentTarget.src, {
+                        title: alertItem.title,
+                        cameraId: incident.cameraId,
+                        cameraName: camera?.name || (incident.cameraId === 'webcam-0' ? 'Webcam local' : undefined),
+                        location,
+                        zone,
+                        riskLevel: alertItem.severity.toUpperCase(),
+                        riskScore: correspondingEvent?.riskScore ?? undefined,
+                        confidence: correspondingEvent?.confidence ?? undefined,
+                        time: `${new Date(alertItem.createdAt).toLocaleString('vi-VN')} - gần nhất ${new Date(alertItem.lastSeenAt).toLocaleString('vi-VN')}`,
+                        description: alertItem.message,
+                        humanAtRisk: correspondingEvent?.humanAtRisk
+                      });
+                    }}
                   />
                 ) : null}
                 <div className="min-w-0 flex-1">

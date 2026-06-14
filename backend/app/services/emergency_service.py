@@ -43,6 +43,7 @@ class EmergencyService:
             updated = current.model_copy(
                 update={
                     "risk_score": max(current.risk_score, payload.risk_score),
+                    "confidence": max(current.confidence or 0.0, payload.confidence or 0.0) if current.confidence is not None or payload.confidence is not None else None,
                     "human_at_risk": current.human_at_risk or payload.human_at_risk,
                     "updated_at": now,
                 }
@@ -53,6 +54,7 @@ class EmergencyService:
             update={
                 "risk_level": payload.risk_level.upper(),
                 "risk_score": payload.risk_score,
+                "confidence": payload.confidence,
                 "human_at_risk": payload.human_at_risk,
                 "updated_at": now,
             }
@@ -67,6 +69,7 @@ class EmergencyService:
             previous_state=current.state,
             risk_level=payload.risk_level.upper(),
             risk_score=payload.risk_score,
+            confidence=payload.confidence,
             human_at_risk=payload.human_at_risk,
             message=payload.message or self._message_for(next_state, payload),
             escalation_count=current.escalation_count + 1 if self._is_escalation(current.state, next_state) else current.escalation_count,
@@ -179,6 +182,7 @@ class EmergencyService:
                 description=f"Người vận hành đã xác nhận sự cố khẩn cấp. (Mô tả: {event.message})",
                 risk_level=IncidentRiskLevel(event.risk_level.upper()),
                 risk_score=event.risk_score,
+                confidence=event.confidence,
                 human_at_risk=event.human_at_risk,
                 humans_nearby_count=1 if event.human_at_risk else 0,
                 snapshot_url=event.snapshot_url,
@@ -315,6 +319,7 @@ class EmergencyService:
                             description=f"Hệ thống tự động bật bơm nước dập lửa sau {delay_seconds} giây sự cố không có người phản ứng.",
                             risk_level=IncidentRiskLevel(event.risk_level.upper()),
                             risk_score=event.risk_score,
+                            confidence=event.confidence,
                             human_at_risk=event.human_at_risk,
                             humans_nearby_count=1 if event.human_at_risk else 0,
                             snapshot_url=event.snapshot_url,

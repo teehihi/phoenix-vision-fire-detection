@@ -111,6 +111,7 @@ export async function triggerMockEmergency(payload: {
   cameraId?: string;
   riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   riskScore: number;
+  confidence?: number;
   humanAtRisk: boolean;
   message?: string;
   snapshotUrl?: string;

@@ -71,6 +71,7 @@ export type EmergencyStatus = {
   state: EmergencyState;
   riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   riskScore: number;
+  confidence?: number;
   humanAtRisk: boolean;
   activeEventId?: string | null;
   snapshotUrl?: string | null;
@@ -86,6 +87,7 @@ export type EmergencyEvent = {
   previousState: EmergencyState;
   riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   riskScore: number;
+  confidence?: number;
   humanAtRisk: boolean;
   message: string;
   snapshotUrl?: string | null;

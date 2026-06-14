@@ -74,6 +74,7 @@ class EmergencyRepository:
                 "state": EmergencyState.monitoring,
                 "risk_level": "LOW",
                 "risk_score": 0.0,
+                "confidence": None,
                 "human_at_risk": False,
                 "active_event_id": None,
                 "snapshot_url": None,

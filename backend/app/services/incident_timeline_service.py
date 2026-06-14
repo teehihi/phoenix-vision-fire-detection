@@ -63,6 +63,7 @@ class IncidentTimelineService:
             description=event.message,
             risk_level=IncidentRiskLevel(event.risk_level.upper()),
             risk_score=event.risk_score,
+            confidence=event.confidence,
             human_at_risk=event.human_at_risk,
             snapshot_url=event.snapshot_url,
             metadata={

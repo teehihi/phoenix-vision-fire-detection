@@ -10,6 +10,7 @@ class EmergencyEventCreate(BaseModel):
     camera_id: Annotated[str, Field(validation_alias="cameraId")] = "webcam-0"
     risk_level: Annotated[str, Field(validation_alias="riskLevel")]
     risk_score: Annotated[float, Field(validation_alias="riskScore")]
+    confidence: float | None = None
     human_at_risk: Annotated[bool, Field(validation_alias="humanAtRisk")] = False
     snapshot_url: Annotated[str | None, Field(validation_alias="snapshotUrl")] = None
     message: str | None = None
@@ -24,6 +25,7 @@ class EmergencyEventResponse(BaseModel):
     previous_state: EmergencyState = Field(serialization_alias="previousState")
     risk_level: str = Field(serialization_alias="riskLevel")
     risk_score: float = Field(serialization_alias="riskScore")
+    confidence: float | None = None
     human_at_risk: bool = Field(serialization_alias="humanAtRisk")
     message: str
     snapshot_url: str | None = Field(default=None, serialization_alias="snapshotUrl")
@@ -40,6 +42,7 @@ class EmergencyStatusResponse(BaseModel):
     state: EmergencyState
     risk_level: str = Field(serialization_alias="riskLevel")
     risk_score: float = Field(serialization_alias="riskScore")
+    confidence: float | None = None
     human_at_risk: bool = Field(serialization_alias="humanAtRisk")
     active_event_id: str | None = Field(default=None, serialization_alias="activeEventId")
     snapshot_url: str | None = Field(default=None, serialization_alias="snapshotUrl")

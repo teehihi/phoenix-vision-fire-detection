@@ -19,6 +19,7 @@ class EmergencyEvent(BaseModel):
     previous_state: EmergencyState
     risk_level: str
     risk_score: float
+    confidence: float | None = None
     human_at_risk: bool = False
     message: str
     snapshot_url: str | None = None
@@ -33,6 +34,7 @@ class EmergencyStatus(BaseModel):
     state: EmergencyState = EmergencyState.monitoring
     risk_level: str = "LOW"
     risk_score: float = 0.0
+    confidence: float | None = None
     human_at_risk: bool = False
     active_event_id: str | None = None
     snapshot_url: str | None = None

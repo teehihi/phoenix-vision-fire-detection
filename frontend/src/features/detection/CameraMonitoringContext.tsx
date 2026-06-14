@@ -51,6 +51,7 @@ type CameraMonitoringContextValue = {
   deleteCamera: (cameraId: string) => Promise<void>;
   deleteCameras: (cameraIds: string[]) => Promise<void>;
   setCamerasEnabled: (cameraIds: string[], enabled: boolean) => Promise<void>;
+  localWebcamEnabled: boolean;
 };
 
 const CameraMonitoringContext = createContext<CameraMonitoringContextValue | null>(null);
@@ -77,9 +78,15 @@ export function CameraMonitoringProvider({ children }: { children: ReactNode }) 
     updateCamera,
     deleteCamera,
     deleteCameras,
-    setCamerasEnabled
+    setCamerasEnabled: setCamerasEnabledRegistry
   } = useCameraRegistry();
-  const primaryStream = useRealtimeStream();
+
+  const [localWebcamEnabled, setLocalWebcamEnabled] = useState(() => {
+    const stored = localStorage.getItem('local_webcam_enabled');
+    return stored !== 'false';
+  });
+
+  const primaryStream = useRealtimeStream(undefined, localWebcamEnabled);
   const [cameraRuntimes, setCameraRuntimes] = useState<Record<string, CameraRuntime>>({});
   const [toasts, setToasts] = useState<MonitoringToast[]>([]);
   const lastRiskLevelByCamera = useRef<Record<string, RealtimeRiskPayload['riskLevel']>>({});
@@ -202,6 +209,20 @@ export function CameraMonitoringProvider({ children }: { children: ReactNode }) 
     return riskToEmergencyState(highestRisk);
   }, [cameraRuntimes, primaryStream.frame]);
 
+  const setCamerasEnabled = useCallback(async (cameraIds: string[], enabled: boolean) => {
+    const hasWebcam = cameraIds.includes('webcam-0');
+    const registryIds = cameraIds.filter((id) => id !== 'webcam-0');
+
+    if (hasWebcam) {
+      setLocalWebcamEnabled(enabled);
+      localStorage.setItem('local_webcam_enabled', String(enabled));
+    }
+
+    if (registryIds.length > 0) {
+      await setCamerasEnabledRegistry(registryIds, enabled);
+    }
+  }, [setCamerasEnabledRegistry]);
+
   const value = useMemo<CameraMonitoringContextValue>(() => ({
     registryCameras,
     camerasLoading,
@@ -215,7 +236,8 @@ export function CameraMonitoringProvider({ children }: { children: ReactNode }) 
     updateCamera,
     deleteCamera,
     deleteCameras,
-    setCamerasEnabled
+    setCamerasEnabled,
+    localWebcamEnabled
   }), [
     cameraRegistryError,
     cameraRuntimes,
@@ -229,7 +251,8 @@ export function CameraMonitoringProvider({ children }: { children: ReactNode }) 
     registryCameras,
     setCamerasEnabled,
     toasts,
-    updateCamera
+    updateCamera,
+    localWebcamEnabled
   ]);
 
   return (

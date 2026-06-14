@@ -138,6 +138,7 @@ export function StatisticsPage() {
         cameraId: 'webcam-0',
         riskLevel: level,
         riskScore: level === 'CRITICAL' ? 95 : 0,
+        confidence: level === 'CRITICAL' ? 0.95 : 0.0,
         humanAtRisk: level === 'CRITICAL',
         message: level === 'CRITICAL'
           ? 'Mô phỏng cháy khẩn cấp từ Dashboard UI'

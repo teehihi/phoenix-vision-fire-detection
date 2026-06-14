@@ -107,10 +107,15 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
           ) {
             pendingSyncRiskLevelRef.current = currentRiskLevel;
             lastSyncAttemptAtRef.current = Date.now();
+            const maxConfidence = frameMsg.detections && frameMsg.detections.length > 0
+              ? Math.max(...frameMsg.detections.map(d => d.confidence))
+              : undefined;
+
             triggerMockEmergency({
               cameraId: frameMsg.cameraId,
               riskLevel: currentRiskLevel,
               riskScore: risk.riskScore,
+              confidence: maxConfidence,
               humanAtRisk: risk.humanAtRisk,
               message: `Hệ thống tự động phát hiện cảnh báo nguy cơ: ${risk.status}`,
               snapshotUrl: `data:image/jpeg;base64,${frameMsg.frame}`

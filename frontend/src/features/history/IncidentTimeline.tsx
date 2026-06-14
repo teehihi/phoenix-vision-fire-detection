@@ -1,10 +1,13 @@
 import { AlertTriangle, Camera, Clock, Flame, ShieldAlert, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
 import { SecureStorageImage } from '../../components/ui/SecureStorageImage';
 import { getIncidentTimeline, type IncidentTimelineFilters, deleteTimelineEvent, clearAllTimelineEvents } from '../../lib/apiClient';
 import type { IncidentTimelineEvent } from '../../types/detection';
 import { groupIncidentTimeline } from './incidentGrouping';
+import { ImageFullscreenModal, type FullscreenImageDetails } from '../../components/ui/ImageFullscreenModal';
+import { useCameraMonitoring } from '../detection/CameraMonitoringContext';
 
 const riskClasses = {
   LOW: 'bg-sky-50 text-sky-700 ring-sky-200',
@@ -19,6 +22,7 @@ export function IncidentTimeline() {
   const [error, setError] = useState<string | null>(null);
   const [expandedIncidentId, setExpandedIncidentId] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
+  const [previewImage, setPreviewImage] = useState<{ src: string; details: FullscreenImageDetails } | null>(null);
 
   async function loadEvents() {
     try {
@@ -160,12 +164,19 @@ export function IncidentTimeline() {
                   }
                 }
               }}
+              onImageClick={(src, details) => setPreviewImage({ src, details })}
             />
           )) : (
             <EmptyTimeline />
           )}
         </div>
       </div>
+
+      <AnimatePresence>
+        {previewImage ? (
+          <ImageFullscreenModal src={previewImage.src} details={previewImage.details} onClose={() => setPreviewImage(null)} />
+        ) : null}
+      </AnimatePresence>
     </section>
   );
 }
@@ -177,6 +188,7 @@ function IncidentGroupCard({
   onToggle,
   onDeleteEvent,
   onDeleteGroup,
+  onImageClick,
 }: {
   incident: ReturnType<typeof groupIncidentTimeline>[number];
   expanded: boolean;
@@ -184,7 +196,12 @@ function IncidentGroupCard({
   onToggle: () => void;
   onDeleteEvent: (eventId: string) => Promise<void> | void;
   onDeleteGroup: () => void;
+  onImageClick: (url: string, details: FullscreenImageDetails) => void;
 }) {
+  const { registryCameras } = useCameraMonitoring();
+  const camera = registryCameras.find(cam => cam.id === incident.cameraId);
+  const location = camera?.location || (incident.cameraId === 'webcam-0' ? 'Máy hiện tại' : undefined);
+  const zone = camera?.zone || (incident.cameraId === 'webcam-0' ? 'Nguồn kiểm thử' : undefined);
   const leadEvent = incident.events[0];
   const Icon = incident.humanAtRisk ? ShieldAlert : leadEvent.eventType === 'snapshot' ? Camera : incident.riskLevel === 'LOW' ? Clock : Flame;
 
@@ -198,7 +215,7 @@ function IncidentGroupCard({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" onClick={onToggle} className="text-left font-semibold text-slate-950 hover:text-orange-700">
-                {incident.cameraId} - {incident.title}
+                {camera?.name || (incident.cameraId === 'webcam-0' ? 'Webcam local' : incident.cameraId)} - {incident.title}
               </button>
               <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${riskClasses[incident.riskLevel]}`}>{incident.riskLevel}</span>
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
@@ -216,7 +233,28 @@ function IncidentGroupCard({
         </div>
 
         {incident.snapshotUrl ? (
-          <SecureStorageImage source={incident.snapshotUrl} alt={incident.title} className="h-20 w-full rounded-md object-cover md:h-full" />
+          <SecureStorageImage
+            source={incident.snapshotUrl}
+            alt={incident.title}
+            className="h-20 w-full rounded-md object-cover md:h-full cursor-pointer hover:opacity-90 transition active:scale-[0.98]"
+            onClick={(e) => {
+              const confidenceEvent = incident.events.find((ev) => ev.confidence != null);
+              const riskScoreEvent = incident.events.find((ev) => ev.riskScore != null);
+              onImageClick(e.currentTarget.src, {
+                title: incident.title,
+                cameraId: incident.cameraId,
+                cameraName: camera?.name || (incident.cameraId === 'webcam-0' ? 'Webcam local' : undefined),
+                location,
+                zone,
+                riskLevel: incident.riskLevel,
+                riskScore: riskScoreEvent?.riskScore ?? undefined,
+                confidence: confidenceEvent?.confidence ?? undefined,
+                time: `Bắt đầu: ${new Date(incident.startAt).toLocaleString('vi-VN')} · Kết thúc: ${new Date(incident.endAt).toLocaleString('vi-VN')}`,
+                description: incident.description,
+                humanAtRisk: incident.humanAtRisk
+              });
+            }}
+          />
         ) : (
           <div className="hidden items-center justify-center rounded-md bg-slate-100 text-slate-400 md:flex h-20">
             <AlertTriangle size={20} />
@@ -245,7 +283,20 @@ function IncidentGroupCard({
                   <SecureStorageImage
                     source={event.snapshotUrl}
                     alt={event.title}
-                    className="h-12 w-16 shrink-0 rounded object-cover border border-slate-100 shadow-sm"
+                    className="h-12 w-16 shrink-0 rounded object-cover border border-slate-100 shadow-sm cursor-pointer hover:opacity-90 transition active:scale-[0.98]"
+                    onClick={(e) => onImageClick(e.currentTarget.src, {
+                      title: event.title,
+                      cameraId: event.cameraId,
+                      cameraName: camera?.name || (event.cameraId === 'webcam-0' ? 'Webcam local' : undefined),
+                      location,
+                      zone,
+                      riskLevel: event.riskLevel,
+                      riskScore: event.riskScore ?? undefined,
+                      confidence: event.confidence ?? undefined,
+                      time: new Date(event.createdAt).toLocaleString('vi-VN'),
+                      description: event.description,
+                      humanAtRisk: event.humanAtRisk
+                    })}
                   />
                 ) : null}
                 <div className="min-w-0 flex-1">
@@ -281,7 +332,19 @@ function IncidentGroupCard({
   );
 }
 
-function TimelineItem({ event, onDelete }: { event: IncidentTimelineEvent; onDelete: () => void }) {
+function TimelineItem({
+  event,
+  onDelete,
+  onImageClick,
+}: {
+  event: IncidentTimelineEvent;
+  onDelete: () => void;
+  onImageClick: (url: string, details: FullscreenImageDetails) => void;
+}) {
+  const { registryCameras } = useCameraMonitoring();
+  const camera = registryCameras.find(cam => cam.id === event.cameraId);
+  const location = camera?.location || (event.cameraId === 'webcam-0' ? 'Máy hiện tại' : undefined);
+  const zone = camera?.zone || (event.cameraId === 'webcam-0' ? 'Nguồn kiểm thử' : undefined);
   const Icon = event.humanAtRisk ? ShieldAlert : event.eventType === 'snapshot' ? Camera : event.riskLevel === 'LOW' ? Clock : Flame;
 
   return (
@@ -308,7 +371,24 @@ function TimelineItem({ event, onDelete }: { event: IncidentTimelineEvent; onDel
       </div>
 
       {event.snapshotUrl ? (
-        <SecureStorageImage source={event.snapshotUrl} alt={event.title} className="h-28 w-full rounded-md object-cover md:h-full" />
+        <SecureStorageImage
+          source={event.snapshotUrl}
+          alt={event.title}
+          className="h-28 w-full rounded-md object-cover md:h-full cursor-pointer hover:opacity-90 transition active:scale-[0.98]"
+          onClick={(e) => onImageClick(e.currentTarget.src, {
+            title: event.title,
+            cameraId: event.cameraId,
+            cameraName: camera?.name || (event.cameraId === 'webcam-0' ? 'Webcam local' : undefined),
+            location,
+            zone,
+            riskLevel: event.riskLevel,
+            riskScore: event.riskScore ?? undefined,
+            confidence: event.confidence ?? undefined,
+            time: new Date(event.createdAt).toLocaleString('vi-VN'),
+            description: event.description,
+            humanAtRisk: event.humanAtRisk
+          })}
+        />
       ) : (
         <div className="hidden items-center justify-center rounded-md bg-slate-100 text-slate-400 md:flex">
           <AlertTriangle size={20} />
