@@ -12,7 +12,7 @@ import {
   Users
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { getEmergencyStatus, getIncidentTimeline, triggerMockEmergency } from '../../lib/apiClient';
+import { getEmergencyStatus, getIncidentTimeline, triggerMockEmergency, resolveEmergency } from '../../lib/apiClient';
 import type { EmergencyStatus, IncidentTimelineEvent } from '../../types/detection';
 import { groupIncidentTimeline } from '../history/incidentGrouping';
 
@@ -134,19 +134,23 @@ export function StatisticsPage() {
   async function handleTriggerTest(level: 'LOW' | 'CRITICAL') {
     setTestLoading(true);
     try {
-      await triggerMockEmergency({
-        cameraId: 'webcam-0',
-        riskLevel: level,
-        riskScore: level === 'CRITICAL' ? 95 : 0,
-        confidence: level === 'CRITICAL' ? 0.95 : 0.0,
-        humanAtRisk: level === 'CRITICAL',
-        message: level === 'CRITICAL'
-          ? 'Mô phỏng cháy khẩn cấp từ Dashboard UI'
-          : 'Khôi phục trạng thái an toàn'
-      });
+      if (level === 'LOW' && status?.activeEventId) {
+        await resolveEmergency(status.activeEventId);
+      } else {
+        await triggerMockEmergency({
+          cameraId: 'webcam-0',
+          riskLevel: level,
+          riskScore: level === 'CRITICAL' ? 95 : 0,
+          confidence: level === 'CRITICAL' ? 0.95 : 0.0,
+          humanAtRisk: level === 'CRITICAL',
+          message: level === 'CRITICAL'
+            ? 'Mô phỏng cháy khẩn cấp từ Dashboard UI'
+            : 'Khôi phục trạng thái an toàn'
+        });
+      }
       await loadData();
     } catch {
-      window.alert('Không thể thực hiện mô phỏng.');
+      window.alert('Không thể thực hiện tác vụ này.');
     } finally {
       setTestLoading(false);
     }
@@ -530,13 +534,7 @@ function buildRiskDistribution(events: IncidentTimelineEvent[]) {
 }
 
 function deriveSystemRiskLevel(status: EmergencyStatus | null, events: IncidentTimelineEvent[]): RiskLevel {
-  const recentEvents = events.filter((event) => isRecentEvent(event.createdAt));
-  const recentHighest = recentEvents.reduce<RiskLevel>(
-    (highest, event) => riskPriority[event.riskLevel] > riskPriority[highest] ? event.riskLevel : highest,
-    'LOW',
-  );
-  const statusRisk = (status?.riskLevel ?? 'LOW') as RiskLevel;
-  return riskPriority[recentHighest] > riskPriority[statusRisk] ? recentHighest : statusRisk;
+  return (status?.riskLevel ?? 'LOW') as RiskLevel;
 }
 
 function isRecentEvent(value: string) {
