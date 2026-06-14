@@ -10,6 +10,8 @@
 ========================= */
 
 constexpr uint8_t LED_PIN = 2;       // LED cũ (onboard hoặc LED đơn)
+constexpr uint8_t LED_G12_PIN = 12;  // LED G12 mới
+constexpr uint8_t LED_G14_PIN = 14;  // LED G14 mới
 constexpr uint8_t NEOPIXEL_PIN = 13; // Chân DI của vòng LED mới nối vào G13
 constexpr uint16_t LED_COUNT = 8;    // Số lượng bóng LED trên vòng
 constexpr uint8_t BUZZER_PIN = 4;
@@ -103,6 +105,8 @@ unsigned long previousMillis = 0;
 int patternIndex = 0;
 unsigned long lastLedUpdate = 0;
 uint16_t animFrame = 0;
+unsigned long lastMediumLedMs = 0;
+int mediumLedStep = 0;
 
 /* =========================
    HELPERS
@@ -492,6 +496,67 @@ void updateSafeAnimation()
   strip.show();
 }
 
+void updateMediumLEDs(unsigned long currentMillis)
+{
+  const unsigned long stepDurations[] = {
+    60, 60, 60, 120, // LED 1 (G2): ON 60ms, OFF 60ms, ON 60ms, OFF 120ms
+    60, 60, 60, 120, // LED 2 (G12): ON 60ms, OFF 60ms, ON 60ms, OFF 120ms
+    60, 60, 60, 300  // LED 3 (G14): ON 60ms, OFF 60ms, ON 60ms, OFF 300ms
+  };
+  constexpr int totalSteps = sizeof(stepDurations) / sizeof(stepDurations[0]);
+
+  if (currentMillis - lastMediumLedMs >= stepDurations[mediumLedStep])
+  {
+    lastMediumLedMs = currentMillis;
+    mediumLedStep = (mediumLedStep + 1) % totalSteps;
+
+    // Reset all LEDs to OFF
+    digitalWrite(LED_PIN, LED_OFF_LEVEL);
+    digitalWrite(LED_G12_PIN, LED_OFF_LEVEL);
+    digitalWrite(LED_G14_PIN, LED_OFF_LEVEL);
+
+    bool soundOn = false;
+
+    // Turn ON the correct LED based on current step
+    if (mediumLedStep == 0 || mediumLedStep == 2)
+    {
+      digitalWrite(LED_PIN, LED_ON_LEVEL);
+      soundOn = true;
+    }
+    else if (mediumLedStep == 4 || mediumLedStep == 6)
+    {
+      digitalWrite(LED_G12_PIN, LED_ON_LEVEL);
+      soundOn = true;
+    }
+    else if (mediumLedStep == 8 || mediumLedStep == 10)
+    {
+      digitalWrite(LED_G14_PIN, LED_ON_LEVEL);
+      soundOn = true;
+    }
+
+    if (soundOn)
+    {
+      if (USE_PASSIVE_BUZZER)
+      {
+        tone(BUZZER_PIN, 1200);
+      }
+      else
+      {
+        digitalWrite(BUZZER_PIN, BUZZER_ON_LEVEL);
+      }
+    }
+    else
+    {
+      if (USE_PASSIVE_BUZZER)
+      {
+        noTone(BUZZER_PIN);
+        pinMode(BUZZER_PIN, OUTPUT);
+      }
+      digitalWrite(BUZZER_PIN, BUZZER_OFF_LEVEL);
+    }
+  }
+}
+
 void startAlarm(String level = "medium")
 {
   level.toLowerCase();
@@ -511,15 +576,32 @@ void startAlarm(String level = "medium")
   animFrame = 0;
   lastLedUpdate = 0;
 
-  digitalWrite(
-    LED_PIN,
-    LED_ON_LEVEL
-  );
-
-  digitalWrite(
-    BUZZER_PIN,
-    BUZZER_ON_LEVEL
-  );
+  if (alarmLevel == "medium")
+  {
+    digitalWrite(LED_PIN, LED_ON_LEVEL);
+    digitalWrite(LED_G12_PIN, LED_OFF_LEVEL);
+    digitalWrite(LED_G14_PIN, LED_OFF_LEVEL);
+    mediumLedStep = 0;
+    lastMediumLedMs = millis();
+    if (USE_PASSIVE_BUZZER)
+    {
+      tone(BUZZER_PIN, 1200);
+    }
+    else
+    {
+      digitalWrite(BUZZER_PIN, BUZZER_ON_LEVEL);
+    }
+  }
+  else
+  {
+    digitalWrite(LED_PIN, LED_ON_LEVEL);
+    digitalWrite(LED_G12_PIN, LED_ON_LEVEL);
+    digitalWrite(LED_G14_PIN, LED_ON_LEVEL);
+    digitalWrite(
+      BUZZER_PIN,
+      BUZZER_ON_LEVEL
+    );
+  }
 
   Serial.println(
     "[INFO] Alarm ON (Level: " + alarmLevel + ")"
@@ -534,12 +616,16 @@ void stopAlarm()
     LED_PIN,
     LED_OFF_LEVEL
   );
+  digitalWrite(LED_G12_PIN, LED_OFF_LEVEL);
+  digitalWrite(LED_G14_PIN, LED_OFF_LEVEL);
 
   stopPump();
 
   patternIndex = 0;
   animFrame = 0;
   lastLedUpdate = 0;
+  lastMediumLedMs = 0;
+  mediumLedStep = 0;
 
   if (USE_PASSIVE_BUZZER)
   {
@@ -647,6 +733,8 @@ void setup()
     LED_PIN,
     OUTPUT
   );
+  pinMode(LED_G12_PIN, OUTPUT);
+  pinMode(LED_G14_PIN, OUTPUT);
 
   strip.begin();
   setRingColor(0, 100, 0); // Trạng thái bình thường/an toàn (màu xanh lá)
@@ -666,6 +754,8 @@ void setup()
     LED_PIN,
     LED_OFF_LEVEL
   );
+  digitalWrite(LED_G12_PIN, LED_OFF_LEVEL);
+  digitalWrite(LED_G14_PIN, LED_OFF_LEVEL);
 
   digitalWrite(
     BUZZER_PIN,
@@ -709,14 +799,7 @@ void loop()
       int freq = 1000;
       if (alarmLevel == "medium")
       {
-        unsigned long cycle = currentMillis % 1000;
-        if (cycle < 300) {
-          tone(BUZZER_PIN, 1200);
-        } else {
-          noTone(BUZZER_PIN);
-          pinMode(BUZZER_PIN, OUTPUT);
-          digitalWrite(BUZZER_PIN, BUZZER_OFF_LEVEL);
-        }
+        // Controlled in updateMediumLEDs
       }
       else if (alarmLevel == "high")
       {
@@ -739,10 +822,17 @@ void loop()
       }
 
       // Nhịp nhấp nháy của đèn LED phụ (LED_PIN) vẫn chạy đồng bộ
-      if (currentMillis - previousMillis >= 250)
+      if (alarmLevel == "medium")
+      {
+        updateMediumLEDs(currentMillis);
+      }
+      else if (currentMillis - previousMillis >= 250)
       {
         previousMillis = currentMillis;
-        digitalWrite(LED_PIN, !digitalRead(LED_PIN));
+        uint8_t nextState = !digitalRead(LED_PIN);
+        digitalWrite(LED_PIN, nextState);
+        digitalWrite(LED_G12_PIN, nextState);
+        digitalWrite(LED_G14_PIN, nextState);
       }
     }
     else
@@ -759,14 +849,23 @@ void loop()
         activeLength = lengthCritical;
       }
 
-      if (currentMillis - previousMillis >= activePattern[patternIndex % activeLength])
+      if (alarmLevel == "medium")
       {
-        previousMillis = currentMillis;
-        patternIndex = (patternIndex + 1) % activeLength;
+        updateMediumLEDs(currentMillis);
+      }
+      else
+      {
+        if (currentMillis - previousMillis >= activePattern[patternIndex % activeLength])
+        {
+          previousMillis = currentMillis;
+          patternIndex = (patternIndex + 1) % activeLength;
 
-        bool isOn = (patternIndex % 2 == 0);
-        digitalWrite(LED_PIN, isOn ? LED_ON_LEVEL : LED_OFF_LEVEL);
-        digitalWrite(BUZZER_PIN, isOn ? BUZZER_ON_LEVEL : BUZZER_OFF_LEVEL);
+          bool isOn = (patternIndex % 2 == 0);
+          digitalWrite(LED_PIN, isOn ? LED_ON_LEVEL : LED_OFF_LEVEL);
+          digitalWrite(LED_G12_PIN, isOn ? LED_ON_LEVEL : LED_OFF_LEVEL);
+          digitalWrite(LED_G14_PIN, isOn ? LED_ON_LEVEL : LED_OFF_LEVEL);
+          digitalWrite(BUZZER_PIN, isOn ? BUZZER_ON_LEVEL : BUZZER_OFF_LEVEL);
+        }
       }
     }
   }

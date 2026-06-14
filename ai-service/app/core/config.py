@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     project_name: str = "YOLO OpenCV Fire Detection Service"
-    yolo_model_path: str = "models/fire_old.pt"
+    yolo_model_path: str = "models/final.pt"
     detection_confidence: float = 0.45
     camera_index: int = 0
     camera_width: int = 1280
