@@ -13,6 +13,8 @@ export function useEmergencyTone(state: EmergencyState, enabled: boolean) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const wasAudibleRef = useRef(false);
 
+  const stopTimeoutRef = useRef<number | null>(null);
+
   useEffect(() => {
     audioRef.current ??= new Audio(publicAsset('alert.mp3'));
     const audio = audioRef.current;
@@ -24,10 +26,23 @@ export function useEmergencyTone(state: EmergencyState, enabled: boolean) {
     if (!audio) return;
 
     if (!enabled || state === 'monitoring') {
-      audio.pause();
-      audio.currentTime = 0;
-      wasAudibleRef.current = false;
+      if (wasAudibleRef.current && !stopTimeoutRef.current) {
+        stopTimeoutRef.current = window.setTimeout(() => {
+          audio.pause();
+          audio.currentTime = 0;
+          wasAudibleRef.current = false;
+          stopTimeoutRef.current = null;
+        }, 4000);
+      } else if (!wasAudibleRef.current) {
+        audio.pause();
+        audio.currentTime = 0;
+      }
       return;
+    }
+
+    if (stopTimeoutRef.current) {
+      window.clearTimeout(stopTimeoutRef.current);
+      stopTimeoutRef.current = null;
     }
 
     audio.volume = volumeByState[state];

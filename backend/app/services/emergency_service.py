@@ -37,18 +37,21 @@ class EmergencyService:
             EmergencyState.critical: 3,
         }
 
-        # Do not allow automatic downgrade/de-escalation during an active emergency event.
-        # Downward transitions must be performed by operator actions (Resolve).
-        if current.state != EmergencyState.monitoring and priority[next_state] < priority[current.state]:
-            updated = current.model_copy(
-                update={
-                    "risk_score": max(current.risk_score, payload.risk_score),
-                    "confidence": max(current.confidence or 0.0, payload.confidence or 0.0) if current.confidence is not None or payload.confidence is not None else None,
-                    "human_at_risk": current.human_at_risk or payload.human_at_risk,
-                    "updated_at": now,
-                }
-            )
-            return self.repository.save_status(user_id, updated)
+        # Auto-Resolve: If frontend sends LOW, force state to monitoring and bypass downgrade block
+        if payload.risk_level.upper() == "LOW":
+            next_state = EmergencyState.monitoring
+        else:
+            # Do not allow automatic downgrade/de-escalation during an active emergency event.
+            # Downward transitions must be performed by operator actions (Resolve) OR Auto-Resolve.
+            if current.state != EmergencyState.monitoring and priority[next_state] < priority[current.state]:
+                updated = current.model_copy(
+                    update={
+                        "risk_score": max(current.risk_score, payload.risk_score),
+                        "snapshot_url": payload.snapshot_url or current.snapshot_url,
+                        "updated_at": now,
+                    }
+                )
+                return self.repository.save_status(user_id, updated)
 
         updated = current.model_copy(
             update={
@@ -61,7 +64,26 @@ class EmergencyService:
         )
 
         if next_state == current.state:
-            return self.repository.save_status(user_id, updated)
+            result = self.repository.save_status(user_id, updated)
+            # Re-trigger IoT to ensure it's active if it was manually stopped
+            try:
+                loop = asyncio.get_event_loop()
+                if next_state == EmergencyState.critical:
+                    if loop.is_running():
+                        loop.create_task(esp32_client.trigger_alarm("critical"))
+                        loop.create_task(esp32_client.trigger_pump(True))
+                    else:
+                        loop.run_until_complete(esp32_client.trigger_alarm("critical"))
+                        loop.run_until_complete(esp32_client.trigger_pump(True))
+                elif next_state in [EmergencyState.warning, EmergencyState.emergency]:
+                    level = "high" if next_state == EmergencyState.emergency else "medium"
+                    if loop.is_running():
+                        loop.create_task(esp32_client.trigger_alarm(level))
+                    else:
+                        loop.run_until_complete(esp32_client.trigger_alarm(level))
+            except Exception as e:
+                logger.error(f"Failed to re-trigger ESP32 on same state update: {e}")
+            return result
 
         event = EmergencyEvent(
             camera_id=payload.camera_id,
@@ -135,25 +157,29 @@ class EmergencyService:
                         loop.run_until_complete(esp32_client.trigger_alarm("critical"))
                         loop.run_until_complete(esp32_client.trigger_pump(True))
                 elif next_state in [EmergencyState.warning, EmergencyState.emergency]:
-                    # Warning/Emergency: Alarm ON only (Pump OFF initially)
+                    # Warning/Emergency: Alarm ON immediately, pump follows the 10s delay.
                     level = "high" if next_state == EmergencyState.emergency else "medium"
                     if loop.is_running():
                         loop.create_task(esp32_client.trigger_alarm(level))
-                        loop.create_task(esp32_client.trigger_pump(False))
+                        if current.state == EmergencyState.monitoring:
+                            loop.create_task(esp32_client.trigger_pump(False, force=True))
                     else:
                         loop.run_until_complete(esp32_client.trigger_alarm(level))
-                        loop.run_until_complete(esp32_client.trigger_pump(False))
+                        if current.state == EmergencyState.monitoring:
+                            loop.run_until_complete(esp32_client.trigger_pump(False, force=True))
                     
                     # Schedule automatic pump trigger after delay
                     delay = settings.esp32_auto_pump_delay_seconds
                     if loop.is_running():
-                        loop.create_task(self._schedule_auto_pump(user_id, event.id, delay))
+                        loop.create_task(self._schedule_auto_pump(user_id, incident_id, event.camera_id, delay))
                 elif next_state == EmergencyState.monitoring:
                     # Reset: Alarm OFF + Pump OFF
                     if loop.is_running():
                         loop.create_task(esp32_client.stop_alarm())
+                        loop.create_task(esp32_client.trigger_pump(False, force=True))
                     else:
                         loop.run_until_complete(esp32_client.stop_alarm())
+                        loop.run_until_complete(esp32_client.trigger_pump(False, force=True))
             except Exception as e:
                 logger.error(f"Failed to control ESP32 on state change: {e}")
 
@@ -250,8 +276,10 @@ class EmergencyService:
             loop = asyncio.get_event_loop()
             if loop.is_running():
                 loop.create_task(esp32_client.stop_alarm())
+                loop.create_task(esp32_client.trigger_pump(False, force=True))
             else:
                 loop.run_until_complete(esp32_client.stop_alarm())
+                loop.run_until_complete(esp32_client.trigger_pump(False, force=True))
         except Exception as e:
             logger.error(f"Failed to stop ESP32 alarm on resolve: {e}")
 
@@ -288,49 +316,48 @@ class EmergencyService:
             return "Fire or smoke risk detected. Continue monitoring."
         return "Monitoring normal."
 
-    async def _schedule_auto_pump(self, user_id: str, event_id: str, delay_seconds: int):
-        logger.info(f"Scheduled auto-pump check for event {event_id} in {delay_seconds} seconds")
+    async def _schedule_auto_pump(self, user_id: str, incident_id: str, camera_id: str, delay_seconds: int):
+        logger.info(f"Scheduled auto-pump check for incident {incident_id} in {delay_seconds} seconds")
         await asyncio.sleep(delay_seconds)
-        
-        # Check if the event is still active and unacknowledged
-        event = self.repository.find_event(user_id, event_id)
-        if not event:
-            return
-            
-        if event.acknowledged_at is None and event.resolved_at is None:
-            # Check if this event is still the active event for the camera
-            status = self.repository.get_status(user_id, event.camera_id)
-            incident_id = status.active_event_id or event.id
-            if status.active_event_id == event_id and status.state in [EmergencyState.warning, EmergencyState.emergency]:
-                logger.warning(f"Event {event_id} remains unacknowledged after {delay_seconds} seconds. Automatically activating pump!")
-                try:
-                    await esp32_client.trigger_pump(True)
-                    
-                    # Log this automatic action in the timeline!
-                    from app.models.incident_timeline import IncidentEventType, IncidentRiskLevel
-                    from app.schemas.incident_timeline import IncidentTimelineEventCreate
-                    
-                    self.timeline_service.create_event(
-                        user_id,
-                        IncidentTimelineEventCreate(
-                            camera_id=event.camera_id,
-                            event_type=IncidentEventType.operator_action,
-                            title="Tự động kích hoạt bơm",
-                            description=f"Hệ thống tự động bật bơm nước dập lửa sau {delay_seconds} giây sự cố không có người phản ứng.",
-                            risk_level=IncidentRiskLevel(event.risk_level.upper()),
-                            risk_score=event.risk_score,
-                            confidence=event.confidence,
-                            human_at_risk=event.human_at_risk,
-                            humans_nearby_count=1 if event.human_at_risk else 0,
-                            snapshot_url=event.snapshot_url,
-                            metadata={
-                                "emergencyEventId": event.id,
-                                "incidentId": incident_id,
-                                "action": "auto_pump",
-                                "operator": "system_auto"
-                            }
-                        )
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to automatically turn on ESP32 pump: {e}")
 
+        event = self.repository.find_event(user_id, incident_id)
+        if not event or event.resolved_at is not None:
+            return
+
+        status = self.repository.get_status(user_id, camera_id)
+        if status.active_event_id == incident_id and status.state in [EmergencyState.warning, EmergencyState.emergency]:
+            if esp32_client.pump_on:
+                logger.info(f"Auto-pump skipped for incident {incident_id} because pump is already active.")
+                return
+
+            logger.warning(f"Incident {incident_id} is still active after {delay_seconds} seconds. Automatically activating pump!")
+            try:
+                await esp32_client.trigger_pump(True)
+
+                # Log this automatic action in the timeline.
+                from app.models.incident_timeline import IncidentEventType, IncidentRiskLevel
+                from app.schemas.incident_timeline import IncidentTimelineEventCreate
+
+                self.timeline_service.create_event(
+                    user_id,
+                    IncidentTimelineEventCreate(
+                        camera_id=event.camera_id,
+                        event_type=IncidentEventType.operator_action,
+                        title="Tự động kích hoạt bơm",
+                        description=f"Hệ thống tự động bật bơm nước dập lửa sau {delay_seconds} giây sự cố vẫn còn hoạt động.",
+                        risk_level=IncidentRiskLevel(event.risk_level.upper()),
+                        risk_score=event.risk_score,
+                        confidence=event.confidence,
+                        human_at_risk=event.human_at_risk,
+                        humans_nearby_count=1 if event.human_at_risk else 0,
+                        snapshot_url=event.snapshot_url,
+                        metadata={
+                            "emergencyEventId": event.id,
+                            "incidentId": incident_id,
+                            "action": "auto_pump",
+                            "operator": "system_auto"
+                        }
+                    )
+                )
+            except Exception as e:
+                logger.error(f"Failed to automatically turn on ESP32 pump: {e}")

@@ -13,7 +13,7 @@ const riskPriority: Record<ProcessedFrameMessage['risk']['riskLevel'], number> =
   HIGH: 2,
   CRITICAL: 3
 };
-const incidentResetDelayMs = 10000;
+const incidentResetDelayMs = 5000;
 const streamIdleTimeoutMs = 10000;
 
 export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) {
@@ -86,11 +86,21 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
           const risk = frameMsg.risk;
           const currentRiskLevel = risk.riskLevel;
           const currentRiskPriority = riskPriority[currentRiskLevel];
-          const canRetrySync = Date.now() - lastSyncAttemptAtRef.current >= 3000;
-
           if (currentRiskLevel === 'LOW') {
             lowRiskSinceRef.current ??= Date.now();
             if (Date.now() - lowRiskSinceRef.current >= incidentResetDelayMs) {
+              if (lastSyncedRiskPriorityRef.current > 0 && auth.currentUser) {
+                // Auto-resolve only after LOW stays stable, so brief detection dips do not stop the alarm.
+                triggerMockEmergency({
+                  cameraId: frameMsg.cameraId,
+                  riskLevel: 'LOW',
+                  riskScore: 0,
+                  confidence: 1.0,
+                  humanAtRisk: false,
+                  message: 'Hệ thống xác nhận đã an toàn (Lửa đã tắt).',
+                  snapshotUrl: `data:image/jpeg;base64,${frameMsg.frame}`
+                }).catch(err => console.error('Failed to auto-resolve incident:', err));
+              }
               lastSyncedRiskPriorityRef.current = 0;
               pendingSyncRiskLevelRef.current = null;
             }
@@ -103,7 +113,6 @@ export function useRealtimeStream(streamUrl = defaultStreamUrl, enabled = true) 
             currentRiskPriority > lastSyncedRiskPriorityRef.current
             && auth.currentUser
             && pendingSyncRiskLevelRef.current !== currentRiskLevel
-            && canRetrySync
           ) {
             pendingSyncRiskLevelRef.current = currentRiskLevel;
             lastSyncAttemptAtRef.current = Date.now();

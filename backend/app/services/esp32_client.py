@@ -18,6 +18,8 @@ class Esp32Client:
     def __init__(self):
         self.base_url = settings.esp32_base_url.rstrip("/")
         self.timeout = 5.0  # seconds
+        self.pump_on = False
+        self.manual_override = False
 
     async def _request(self, method: str, endpoint: str) -> Dict[str, Any]:
         if not self.base_url:
@@ -70,11 +72,30 @@ class Esp32Client:
 
     async def stop_alarm(self) -> Dict[str, Any]:
         """Stop the alarm on the ESP32."""
-        return await self._request("GET", "/stop")
+        response = await self._request("GET", "/stop")
+        self.pump_on = False
+        self.manual_override = False
+        return response
 
-    async def trigger_pump(self, on: bool) -> Dict[str, Any]:
+    async def trigger_pump(self, on: bool, manual: bool = False, force: bool = False) -> Dict[str, Any]:
         """Turn the pump ON or OFF on the ESP32."""
+        if manual:
+            self.manual_override = on
+
+        # Ignore redundant commands
+        if self.pump_on == on and not force:
+            return {"status": "success", "message": "Already in requested state"}
+
+        # Avoid auto-off if manually turned on
+        if not on and not manual and not force and self.manual_override:
+            logger.info("Ignoring auto-off pump command due to manual override")
+            return {"status": "success", "message": "Ignored due to manual override"}
+
         endpoint = "/pump/on" if on else "/pump/off"
-        return await self._request("GET", endpoint)
+        response = await self._request("GET", endpoint)
+        self.pump_on = on
+        if not on:
+            self.manual_override = False
+        return response
 
 esp32_client = Esp32Client()

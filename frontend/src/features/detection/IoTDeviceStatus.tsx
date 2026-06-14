@@ -1,6 +1,7 @@
 import { Bell, BellOff, Cpu, Droplet, LoaderCircle, Wifi, WifiOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getIotStatus, stopIotAlarm, triggerIotAlarm, turnOffPump, turnOnPump } from '../../lib/apiClient';
+import { useCameraMonitoring } from './CameraMonitoringContext';
 
 type IotStatus = {
   online: boolean;
@@ -11,6 +12,8 @@ type IotStatus = {
 
 export function IoTDeviceStatus() {
   const [status, setStatus] = useState<IotStatus | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const { highestEmergencyState } = useCameraMonitoring();
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +48,26 @@ export function IoTDeviceStatus() {
       window.clearInterval(interval);
     };
   }, []);
+
+  useEffect(() => {
+    if (highestEmergencyState === 'critical' || status?.pump) {
+      setCountdown(null);
+    } else if (highestEmergencyState === 'warning' || highestEmergencyState === 'emergency') {
+      if (countdown === null && !status?.pump) {
+        setCountdown(10);
+      }
+    } else if (highestEmergencyState === 'monitoring') {
+      setCountdown(null);
+    }
+  }, [highestEmergencyState, status?.pump, countdown]);
+
+  useEffect(() => {
+    if (countdown === null || countdown <= 0) return;
+    const timer = setInterval(() => {
+      setCountdown((prev) => (prev && prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [countdown]);
 
   async function handleTestAlarm(level: string = 'medium') {
     setActionLoading(true);
@@ -170,11 +193,13 @@ export function IoTDeviceStatus() {
             className={`inline-flex h-7 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
               isPumpActive 
                 ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
-                : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                : countdown !== null && countdown > 0
+                  ? 'bg-orange-100 text-orange-700 hover:bg-orange-200 animate-pulse'
+                  : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
             }`}
           >
             {actionLoading && isPumpActive ? <LoaderCircle size={12} className="animate-spin" /> : <Droplet size={12} />}
-            {isPumpActive ? 'Tắt Bơm' : 'Bật Bơm'}
+            {isPumpActive ? 'Tắt Bơm' : countdown !== null && countdown > 0 ? `Bật Bơm (${countdown}s)` : 'Bật Bơm'}
           </button>
 
           <button

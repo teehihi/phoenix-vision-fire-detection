@@ -14,6 +14,7 @@ import {
   type ConnectionState
 } from '../../hooks/useRealtimeStream';
 import type { EmergencyState, ProcessedFrameMessage, RealtimeRiskPayload } from '../../types/detection';
+import { turnOnPump } from '../../lib/apiClient';
 import {
   useCameraRegistry,
   type CameraRegistryInput,
@@ -92,6 +93,8 @@ export function CameraMonitoringProvider({ children }: { children: ReactNode }) 
   const lastRiskLevelByCamera = useRef<Record<string, RealtimeRiskPayload['riskLevel']>>({});
   const dismissedRiskLevelByCamera = useRef<Record<string, RealtimeRiskPayload['riskLevel']>>({});
   const lastNotifiedStateByCamera = useRef<Record<string, EmergencyState>>({});
+  const lowRiskSinceByCamera = useRef<Record<string, number>>({});
+  const lastSpacePumpAtRef = useRef(0);
   const cameraNames = useMemo(
     () => Object.fromEntries(registryCameras.map((camera) => [camera.id, camera.name])),
     [registryCameras]
@@ -111,11 +114,20 @@ export function CameraMonitoringProvider({ children }: { children: ReactNode }) 
     const existingToastId = frame.cameraId;
 
     if (riskLevel === 'LOW') {
-      delete dismissedRiskLevelByCamera.current[frame.cameraId];
-      delete lastNotifiedStateByCamera.current[frame.cameraId];
-      setToasts((current) => current.filter((toast) => toast.id !== existingToastId));
+      const lowSince = lowRiskSinceByCamera.current[frame.cameraId] ?? Date.now();
+      lowRiskSinceByCamera.current[frame.cameraId] = lowSince;
+
+      // Debounce LOW state for 1 second before clearing notification state
+      if (Date.now() - lowSince > 1000) {
+        delete dismissedRiskLevelByCamera.current[frame.cameraId];
+        delete lastNotifiedStateByCamera.current[frame.cameraId];
+        setToasts((current) => current.filter((toast) => toast.id !== existingToastId));
+      }
       return;
     }
+
+    // If we're not LOW, clear the low risk timer
+    delete lowRiskSinceByCamera.current[frame.cameraId];
 
     const state = riskToEmergencyState(riskLevel);
     const previousNotifiedState = lastNotifiedStateByCamera.current[frame.cameraId] ?? 'monitoring';
@@ -254,6 +266,25 @@ export function CameraMonitoringProvider({ children }: { children: ReactNode }) 
     updateCamera,
     localWebcamEnabled
   ]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isTyping = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+      const canManuallyStartPump = highestEmergencyState === 'warning' || highestEmergencyState === 'emergency';
+      if (e.code === 'Space' && !isTyping && canManuallyStartPump) {
+        const now = Date.now();
+        if (now - lastSpacePumpAtRef.current < 1000) {
+          return;
+        }
+        lastSpacePumpAtRef.current = now;
+        e.preventDefault();
+        turnOnPump().catch((err) => console.error('Failed to trigger pump via Spacebar', err));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [highestEmergencyState]);
 
   return (
     <CameraMonitoringContext.Provider value={value}>

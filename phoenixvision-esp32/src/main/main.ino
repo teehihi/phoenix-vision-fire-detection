@@ -560,29 +560,30 @@ void updateMediumLEDs(unsigned long currentMillis)
 void startAlarm(String level = "medium")
 {
   level.toLowerCase();
+  String previousLevel = alarmLevel;
   if (level == "medium" || level == "high" || level == "critical") {
     alarmLevel = level;
   } else {
     alarmLevel = "medium";
   }
 
-  if (alarmActive)
+  if (alarmActive && previousLevel == alarmLevel)
     return;
-
-  alarmActive = true;
 
   patternIndex = 0;
   previousMillis = millis();
   animFrame = 0;
   lastLedUpdate = 0;
+  mediumLedStep = 0;
+  lastMediumLedMs = millis();
+
+  alarmActive = true;
 
   if (alarmLevel == "medium")
   {
     digitalWrite(LED_PIN, LED_ON_LEVEL);
     digitalWrite(LED_G12_PIN, LED_OFF_LEVEL);
     digitalWrite(LED_G14_PIN, LED_OFF_LEVEL);
-    mediumLedStep = 0;
-    lastMediumLedMs = millis();
     if (USE_PASSIVE_BUZZER)
     {
       tone(BUZZER_PIN, 1200);

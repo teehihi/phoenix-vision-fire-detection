@@ -65,7 +65,7 @@ async def turn_pump_on() -> Dict[str, Any]:
     """
     Turn on the water pump on the ESP32.
     """
-    return await esp32_client.trigger_pump(True)
+    return await esp32_client.trigger_pump(True, manual=True)
 
 
 @router.post("/pump/off", response_model=Dict[str, Any])
@@ -73,6 +73,6 @@ async def turn_pump_off() -> Dict[str, Any]:
     """
     Turn off the water pump on the ESP32.
     """
-    return await esp32_client.trigger_pump(False)
+    return await esp32_client.trigger_pump(False, manual=True)
 
 
