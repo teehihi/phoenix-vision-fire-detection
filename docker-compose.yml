@@ -13,7 +13,7 @@ services:
     ports:
       - "8100:8100"
     environment:
-      - YOLO_MODEL_PATH=/app/models/fire_old.pt
-      - DETECTION_CONFIDENCE=0.45
+      - YOLO_MODEL_PATH=/app/models/final.pt
+      - DETECTION_CONFIDENCE=0.12
     volumes:
       - ./ai-service/models:/app/models

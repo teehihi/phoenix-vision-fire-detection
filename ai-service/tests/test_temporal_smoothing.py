@@ -90,7 +90,7 @@ def test_drops_tiny_hazard_boxes_before_risk_analysis() -> None:
 
 def test_default_thresholds_reject_skin_fire_and_keep_stable_smoke() -> None:
     fire_smoother = TemporalDetectionSmoother(StableDetectionConfig(min_area_ratio=0.0))
-    weak_fire = _detection("fire", 0.54)
+    weak_fire = _detection("fire", 0.34)
 
     for _ in range(3):
         fire_output = fire_smoother.update([weak_fire], frame_width=640, frame_height=480)

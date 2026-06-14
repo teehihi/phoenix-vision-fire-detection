@@ -6,16 +6,16 @@ from app.schemas.detection import DetectionResult
 
 @dataclass(frozen=True)
 class StableDetectionConfig:
-    window_size: int = 5
-    min_hits: int = 3
-    fire_confidence: float = 0.55
+    window_size: int = 4
+    min_hits: int = 2
+    fire_confidence: float = 0.35
     supported_fire_confidence: float = 0.25
     smoke_confidence: float = 0.12
     smoke_activation_confidence: float = 0.20
     smoke_max_aspect_ratio: float = 4.0
     person_confidence: float = 0.45
-    min_area_ratio: float = 0.001
-    cooldown_frames: int = 2
+    min_area_ratio: float = 0.00025
+    cooldown_frames: int = 12
 
 
 class TemporalDetectionSmoother:
