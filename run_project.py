@@ -107,7 +107,13 @@ def start_service_if_needed(
 
 def start_process(label: str, cwd: Path, command: list[str]) -> tuple[str, subprocess.Popen[bytes]]:
     print(f"\nStarting {label}: {' '.join(command)}")
-    process = subprocess.Popen(command, cwd=cwd, start_new_session=os.name != "nt")
+    process_kwargs = {"cwd": cwd}
+    if os.name == "nt":
+        process_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        process_kwargs["start_new_session"] = True
+
+    process = subprocess.Popen(command, **process_kwargs)
     return label, process
 
 
@@ -146,7 +152,7 @@ def is_port_open(port: int) -> bool:
 
 def stop_existing_services(ports: list[int]) -> None:
     if os.name == "nt":
-        print("\n--restart-existing is not automatic on Windows. Close old PhoenixVision terminals first.")
+        stop_existing_windows_services(ports)
         return
 
     for port in ports:
@@ -174,11 +180,34 @@ def stop_existing_services(ports: list[int]) -> None:
                 pass
 
 
+def stop_existing_windows_services(ports: list[int]) -> None:
+    for port in ports:
+        result = subprocess.run(["netstat", "-ano"], capture_output=True, text=True, check=False)
+        pids: set[str] = set()
+
+        for line in result.stdout.splitlines():
+            columns = line.split()
+            if len(columns) < 5:
+                continue
+
+            local_address = columns[1]
+            pid = columns[-1]
+            if local_address.endswith(f":{port}") and pid.isdigit():
+                pids.add(pid)
+
+        if not pids:
+            continue
+
+        print(f"\nStopping existing service(s) on port {port}: {', '.join(sorted(pids))}")
+        for pid in sorted(pids):
+            subprocess.run(["taskkill", "/PID", pid, "/T", "/F"], check=False)
+
+
 def stop_processes(processes: list[tuple[str, subprocess.Popen[bytes]]]) -> None:
     for _, process in processes:
         if process.poll() is None:
             if os.name == "nt":
-                process.terminate()
+                subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], check=False)
             else:
                 os.killpg(process.pid, signal.SIGINT)
 
