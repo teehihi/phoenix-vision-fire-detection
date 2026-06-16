@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1100" viewBox="0 0 1800 1100">
+  <defs>
+    <marker id="flowArrow" markerWidth="18" markerHeight="18" refX="15" refY="9" orient="auto" markerUnits="strokeWidth">
+      <path d="M3,3 C7,6 11,8 15,9 C11,10 7,12 3,15 C5,11 5,7 3,3 Z" fill="#2563eb"/>
+    </marker>
+    <marker id="softArrow" markerWidth="16" markerHeight="16" refX="13" refY="8" orient="auto" markerUnits="strokeWidth">
+      <path d="M3,3 C6,5 10,7 13,8 C10,9 6,11 3,13 C5,9 5,7 3,3 Z" fill="#64748b"/>
+    </marker>
+    <style>
+      .title { font-family: "Times New Roman", serif; font-size: 42px; font-weight: 700; fill: #111827; }
+      .subtitle { font-family: "Times New Roman", serif; font-size: 24px; fill: #475569; }
+      .section-title { font-family: "Times New Roman", serif; font-size: 30px; font-weight: 700; fill: #0f172a; }
+      .box-title { font-family: "Times New Roman", serif; font-size: 27px; font-weight: 700; fill: #111827; }
+      .text { font-family: "Times New Roman", serif; font-size: 23px; fill: #334155; }
+      .small { font-family: "Times New Roman", serif; font-size: 21px; fill: #475569; }
+      .stage { fill: #ffffff; stroke: #111827; stroke-width: 4; rx: 20; }
+      .data { fill: #eff6ff; stroke: #3b82f6; stroke-width: 3; rx: 18; }
+      .ai { fill: #f5f3ff; stroke: #8b5cf6; stroke-width: 3; rx: 18; }
+      .filter { fill: #fff7ed; stroke: #f97316; stroke-width: 3; rx: 18; }
+      .risk { fill: #fef2f2; stroke: #ef4444; stroke-width: 3; rx: 18; }
+      .output { fill: #ecfdf5; stroke: #10b981; stroke-width: 3; rx: 18; }
+      .store { fill: #f8fafc; stroke: #64748b; stroke-width: 3; rx: 18; }
+      .arrow { stroke: #2563eb; stroke-width: 6; fill: none; marker-end: url(#flowArrow); stroke-linecap: round; stroke-linejoin: round; }
+      .dash { stroke: #64748b; stroke-width: 4.5; fill: none; stroke-dasharray: 10 9; marker-end: url(#softArrow); stroke-linecap: round; stroke-linejoin: round; }
+      .lane { fill: #f8fafc; stroke: #dbe3ee; stroke-width: 2; rx: 24; }
+      .step-circle { fill: #ffffff; stroke: #2563eb; stroke-width: 3; }
+      .step-num { font-family: "Times New Roman", serif; font-size: 22px; font-weight: 700; fill: #2563eb; }
+    </style>
+  </defs>
+
+  <rect width="1800" height="1100" fill="#ffffff"/>
+
+  <text x="900" y="65" text-anchor="middle" class="title">Quy trình giải pháp thực tế của hệ thống phát hiện cháy và khói</text>
+  <text x="900" y="103" text-anchor="middle" class="subtitle">Từ dữ liệu camera đến nhận diện, lọc kết quả, tính rủi ro và kích hoạt cảnh báo</text>
+
+  <!-- Background lanes -->
+  <rect x="70" y="155" width="1660" height="240" class="lane"/>
+  <rect x="70" y="430" width="1660" height="285" class="lane"/>
+  <rect x="70" y="750" width="1660" height="255" class="lane"/>
+
+  <text x="110" y="198" class="section-title">Nguồn dữ liệu và mô hình</text>
+  <text x="110" y="473" class="section-title">Xử lý realtime trong hệ thống</text>
+  <text x="110" y="793" class="section-title">Cảnh báo, lưu vết và phản hồi</text>
+
+  <!-- Top lane -->
+  <rect x="135" y="230" width="280" height="115" class="data"/>
+  <circle cx="160" cy="230" r="24" class="step-circle"/>
+  <text x="160" y="238" text-anchor="middle" class="step-num">1</text>
+  <text x="275" y="267" text-anchor="middle" class="box-title">Dữ liệu huấn luyện</text>
+  <text x="160" y="300" class="text">• Ảnh/video fire, smoke</text>
+  <text x="160" y="330" class="text">• Mẫu không cháy</text>
+
+  <rect x="500" y="230" width="290" height="115" class="data"/>
+  <circle cx="525" cy="230" r="24" class="step-circle"/>
+  <text x="525" y="238" text-anchor="middle" class="step-num">2</text>
+  <text x="645" y="267" text-anchor="middle" class="box-title">Gán nhãn và chia tập</text>
+  <text x="525" y="300" class="text">• Bounding box YOLO</text>
+  <text x="525" y="330" class="text">• Train / validation / test</text>
+
+  <rect x="875" y="230" width="285" height="115" class="ai"/>
+  <circle cx="900" cy="230" r="24" class="step-circle"/>
+  <text x="900" y="238" text-anchor="middle" class="step-num">3</text>
+  <text x="1017" y="267" text-anchor="middle" class="box-title">Fine-tune YOLOv11</text>
+  <text x="900" y="300" class="text">• Học lớp fire, smoke</text>
+  <text x="900" y="330" class="text">• Chọn trọng số tốt nhất</text>
+
+  <rect x="1245" y="230" width="330" height="115" class="ai"/>
+  <circle cx="1270" cy="230" r="24" class="step-circle"/>
+  <text x="1270" y="238" text-anchor="middle" class="step-num">4</text>
+  <text x="1410" y="267" text-anchor="middle" class="box-title">Đánh giá mô hình</text>
+  <text x="1270" y="300" class="text">• Precision, Recall, mAP</text>
+  <text x="1270" y="330" class="text">• Ma trận nhầm lẫn</text>
+
+  <path d="M425 287 C450 287 463 287 488 287" class="arrow"/>
+  <path d="M800 287 C825 287 837 287 862 287" class="arrow"/>
+  <path d="M1170 287 C1195 287 1207 287 1232 287" class="arrow"/>
+
+  <!-- Middle lane -->
+  <rect x="120" y="525" width="260" height="130" class="data"/>
+  <circle cx="145" cy="525" r="24" class="step-circle"/>
+  <text x="145" y="533" text-anchor="middle" class="step-num">5</text>
+  <text x="250" y="563" text-anchor="middle" class="box-title">Luồng camera</text>
+  <text x="145" y="598" class="text">• Webcam / RTSP</text>
+  <text x="145" y="628" class="text">• Đọc từng frame</text>
+
+  <rect x="455" y="525" width="275" height="130" class="ai"/>
+  <circle cx="480" cy="525" r="24" class="step-circle"/>
+  <text x="480" y="533" text-anchor="middle" class="step-num">6</text>
+  <text x="592" y="563" text-anchor="middle" class="box-title">YOLO inference</text>
+  <text x="480" y="598" class="text">• Phát hiện fire/smoke</text>
+  <text x="480" y="628" class="text">• Box + confidence</text>
+
+  <rect x="805" y="505" width="330" height="170" class="filter"/>
+  <circle cx="830" cy="505" r="24" class="step-circle"/>
+  <text x="830" y="513" text-anchor="middle" class="step-num">7</text>
+  <text x="970" y="543" text-anchor="middle" class="box-title">Lọc kết quả nhận diện</text>
+  <text x="830" y="578" class="text">• Lọc theo độ tin cậy</text>
+  <text x="830" y="608" class="text">• Lọc box quá nhỏ</text>
+  <text x="830" y="638" class="text">• Lọc hình dạng khói bất thường</text>
+  <text x="830" y="668" class="text">• Ưu tiên fire khi đã ổn định</text>
+
+  <rect x="1210" y="505" width="330" height="170" class="filter"/>
+  <circle cx="1235" cy="505" r="24" class="step-circle"/>
+  <text x="1235" y="513" text-anchor="middle" class="step-num">8</text>
+  <text x="1375" y="543" text-anchor="middle" class="box-title">Làm mượt theo thời gian</text>
+  <text x="1235" y="578" class="text">• Xét 4 frame gần nhất</text>
+  <text x="1235" y="608" class="text">• Cần xuất hiện ít nhất 2 frame</text>
+  <text x="1235" y="638" class="text">• Giữ trạng thái ngắn hạn</text>
+  <text x="1235" y="668" class="text">• Giảm nhấp nháy cảnh báo</text>
+
+  <path d="M390 590 C412 590 420 590 442 590" class="arrow"/>
+  <path d="M740 590 C762 590 770 590 792 590" class="arrow"/>
+  <path d="M1145 590 C1167 590 1175 590 1197 590" class="arrow"/>
+  <path d="M1017 350 C1017 410 595 440 592 513" class="dash"/>
+
+  <!-- Bottom lane -->
+  <rect x="130" y="835" width="310" height="130" class="risk"/>
+  <circle cx="155" cy="835" r="24" class="step-circle"/>
+  <text x="155" y="843" text-anchor="middle" class="step-num">9</text>
+  <text x="285" y="873" text-anchor="middle" class="box-title">Tính điểm rủi ro</text>
+  <text x="155" y="908" class="text">• Diện tích vùng fire/smoke</text>
+  <text x="155" y="938" class="text">• Thời gian xuất hiện</text>
+
+  <rect x="515" y="835" width="315" height="130" class="risk"/>
+  <circle cx="540" cy="835" r="24" class="step-circle"/>
+  <text x="540" y="843" text-anchor="middle" class="step-num">10</text>
+  <text x="672" y="873" text-anchor="middle" class="box-title">Phân mức cảnh báo</text>
+  <text x="540" y="908" class="text">• LOW / MEDIUM</text>
+  <text x="540" y="938" class="text">• HIGH / CRITICAL</text>
+
+  <rect x="905" y="835" width="310" height="130" class="output"/>
+  <circle cx="930" cy="835" r="24" class="step-circle"/>
+  <text x="930" y="843" text-anchor="middle" class="step-num">11</text>
+  <text x="1060" y="873" text-anchor="middle" class="box-title">Giao diện giám sát</text>
+  <text x="930" y="908" class="text">• Hiển thị camera realtime</text>
+  <text x="930" y="938" class="text">• Hiển thị box và trạng thái</text>
+
+  <rect x="1290" y="835" width="325" height="130" class="store"/>
+  <circle cx="1315" cy="835" r="24" class="step-circle"/>
+  <text x="1315" y="843" text-anchor="middle" class="step-num">12</text>
+  <text x="1452" y="873" text-anchor="middle" class="box-title">Lưu vết và IoT</text>
+  <text x="1315" y="908" class="text">• Gom cảnh báo theo sự cố</text>
+  <text x="1315" y="938" class="text">• Kích hoạt thiết bị cảnh báo</text>
+
+  <path d="M1375 685 C1375 755 285 755 285 822" class="arrow"/>
+  <path d="M450 900 C472 900 480 900 502 900" class="arrow"/>
+  <path d="M840 900 C862 900 870 900 892 900" class="arrow"/>
+  <path d="M1225 900 C1247 900 1255 900 1277 900" class="arrow"/>
+
+  <!-- Side formula card -->
+  <rect x="108" y="1018" width="1585" height="55" fill="#ffffff" stroke="#cbd5e1" stroke-width="2" rx="14"/>
+  <text x="900" y="1053" text-anchor="middle" class="small">
+    Điểm rủi ro được tính từ kết quả nhận diện đã lọc, diện tích vùng nguy hiểm, thời gian xuất hiện và độ ổn định qua nhiều frame.
+  </text>
+</svg>

@@ -46,7 +46,9 @@ function createWindow() {
 
   if (devUrl) {
     mainWindow.loadURL(devUrl);
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
+    if (process.env.PHOENIX_OPEN_DEVTOOLS === '1') {
+      mainWindow.webContents.openDevTools({ mode: 'detach' });
+    }
     return;
   }
 

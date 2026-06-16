@@ -10,7 +10,7 @@
     "preview": "vite preview --host 0.0.0.0",
     "lint": "eslint src --ext ts,tsx",
     "electron": "electron .",
-    "electron:dev": "PHOENIX_DESKTOP_DEV_URL=http://localhost:5173 electron .",
+    "electron:dev": "node electron/dev.cjs",
     "desktop:build": "npm run build && electron-builder"
   },
   "build": {
