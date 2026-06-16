@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     data_retention_days: int = 30
     esp32_base_url: str = ""
     esp32_auto_pump_delay_seconds: int = 10
+    demo_auth_token: str = "phoenixvision-demo-token"
+    demo_user_id: str = "demo-user"
 
     model_config = SettingsConfigDict(env_file=BACKEND_ROOT / ".env", env_file_encoding="utf-8", extra="ignore")
 

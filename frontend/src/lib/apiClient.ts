@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth } from './firebase';
+import { DEMO_SESSION_KEY } from '../features/auth/AuthContext';
 import type { AlertEvent, DetectionEvent, EmergencyEvent, EmergencyStatus, IncidentTimelineEvent } from '../types/detection';
 
 const api = axios.create({
@@ -24,6 +25,12 @@ async function getAuthenticatedUser() {
 }
 
 api.interceptors.request.use(async (config) => {
+  if (localStorage.getItem(DEMO_SESSION_KEY) === 'active') {
+    tokenUserId = 'demo-user';
+    config.headers.Authorization = 'Bearer phoenixvision-demo-token';
+    return config;
+  }
+
   const user = await getAuthenticatedUser();
   delete config.headers.Authorization;
 
@@ -191,4 +198,3 @@ export async function turnOffPump() {
   const response = await api.post<{ success: boolean; pump: boolean }>('/iot/pump/off');
   return response.data;
 }
-

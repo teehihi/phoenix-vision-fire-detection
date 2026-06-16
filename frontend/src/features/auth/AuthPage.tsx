@@ -3,7 +3,7 @@ import { type FormEvent, type ReactNode, useRef, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { requestRegistrationOtp, verifyRegistrationOtp } from '../../lib/apiClient';
 import { publicAsset } from '../../lib/assets';
-import { useAuth } from './AuthContext';
+import { DEMO_EMAIL, DEMO_PASSWORD, useAuth } from './AuthContext';
 
 type AuthMode = 'login' | 'register';
 
@@ -240,6 +240,12 @@ export function AuthPage() {
             <button type="button" onClick={() => switchMode(isRegister ? 'login' : 'register')} className="font-semibold text-orange-600 transition hover:text-orange-700">
               {isRegister ? 'Đăng nhập' : 'Đăng ký'}
             </button>
+          </p>
+        ) : null}
+
+        {!isRegister && !isOtpStep ? (
+          <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-center text-xs text-slate-500">
+            Demo: <span className="font-semibold text-slate-700">{DEMO_EMAIL}</span> / <span className="font-semibold text-slate-700">{DEMO_PASSWORD}</span>
           </p>
         ) : null}
       </section>

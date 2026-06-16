@@ -9,6 +9,11 @@ import {
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 
+export const DEMO_EMAIL = 'demo@phoenixvision.local';
+export const DEMO_PASSWORD = '123456';
+export const DEMO_USER_ID = 'demo-user';
+export const DEMO_SESSION_KEY = 'phoenixvision:demo-session';
+
 export type RegisterInput = {
   fullName: string;
   email: string;
@@ -39,13 +44,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
+        localStorage.removeItem(DEMO_SESSION_KEY);
         setUser({
           uid: firebaseUser.uid,
           email: firebaseUser.email || '',
           displayName: firebaseUser.displayName || '',
         });
       } else {
-        setUser(null);
+        const demoSession = localStorage.getItem(DEMO_SESSION_KEY);
+        setUser(demoSession === 'active' ? {
+          uid: DEMO_USER_ID,
+          email: DEMO_EMAIL,
+          displayName: 'Tài khoản demo',
+        } : null);
       }
       setLoading(false);
     });
@@ -58,6 +69,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       login: async (email, password) => {
+        const normalizedEmail = email.trim().toLowerCase();
+        if (normalizedEmail === DEMO_EMAIL && password === DEMO_PASSWORD) {
+          localStorage.setItem(DEMO_SESSION_KEY, 'active');
+          setUser({
+            uid: DEMO_USER_ID,
+            email: DEMO_EMAIL,
+            displayName: 'Tài khoản demo',
+          });
+          return;
+        }
+
         await signInWithEmailAndPassword(auth, email, password);
       },
       register: async (input) => {
@@ -83,6 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       },
       logout: async () => {
+        localStorage.removeItem(DEMO_SESSION_KEY);
         await signOut(auth);
       }
     }),
