@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from pathlib import Path
 import platform
 import time
 
@@ -29,8 +30,13 @@ class WebcamStream:
     def frames(self) -> Iterator[np.ndarray]:
         capture = self._open_capture()
         read_failures = 0
+        should_loop = self._is_video_file_source()
 
         try:
+            if should_loop:
+                yield from self._video_file_frames(capture)
+                return
+
             while capture.isOpened():
                 success, frame = capture.read()
                 if not success:
@@ -43,9 +49,67 @@ class WebcamStream:
                     continue
 
                 read_failures = 0
-                yield frame
+                yield self._resize_frame(frame)
         finally:
             capture.release()
+
+    def _video_file_frames(self, capture: cv2.VideoCapture) -> Iterator[np.ndarray]:
+        source_fps = capture.get(cv2.CAP_PROP_FPS) or self.fps or 30
+        frame_count = capture.get(cv2.CAP_PROP_FRAME_COUNT) or 0
+        duration_seconds = frame_count / source_fps if source_fps > 0 and frame_count > 0 else 0
+        started_at = time.monotonic()
+        current_frame_index = 0
+
+        while capture.isOpened():
+            if duration_seconds > 0:
+                elapsed = (time.monotonic() - started_at) % duration_seconds
+                target_frame_index = int(elapsed * source_fps)
+
+                if target_frame_index < current_frame_index:
+                    capture.set(cv2.CAP_PROP_POS_FRAMES, target_frame_index)
+                    current_frame_index = target_frame_index
+                else:
+                    frames_to_skip = target_frame_index - current_frame_index
+                    if frames_to_skip > source_fps * 2:
+                        capture.set(cv2.CAP_PROP_POS_FRAMES, target_frame_index)
+                        current_frame_index = target_frame_index
+                    else:
+                        for _ in range(frames_to_skip):
+                            if not capture.grab():
+                                capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                                started_at = time.monotonic()
+                                current_frame_index = 0
+                                break
+                            current_frame_index += 1
+
+            success, frame = capture.read()
+            if not success:
+                capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                started_at = time.monotonic()
+                current_frame_index = 0
+                continue
+
+            current_frame_index += 1
+            yield self._resize_frame(frame)
+
+    def _is_video_file_source(self) -> bool:
+        if not isinstance(self.source, str):
+            return False
+
+        source = self.source.strip()
+        if not source or "://" in source:
+            return False
+
+        return Path(source).expanduser().exists()
+
+    def _resize_frame(self, frame: np.ndarray) -> np.ndarray:
+        if self.width <= 0 or self.height <= 0:
+            return frame
+
+        if frame.shape[1] == self.width and frame.shape[0] == self.height:
+            return frame
+
+        return cv2.resize(frame, (self.width, self.height), interpolation=cv2.INTER_AREA)
 
     def _open_capture(self) -> cv2.VideoCapture:
         if isinstance(self.source, str):

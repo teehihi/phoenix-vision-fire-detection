@@ -168,9 +168,9 @@ class EmergencyService:
                         if current.state == EmergencyState.monitoring:
                             loop.run_until_complete(esp32_client.trigger_pump(False, force=True))
                     
-                    # Schedule automatic pump trigger after delay
+                    # Keep the first delayed task active across MEDIUM -> HIGH transitions.
                     delay = settings.esp32_auto_pump_delay_seconds
-                    if loop.is_running():
+                    if current.state == EmergencyState.monitoring and loop.is_running():
                         loop.create_task(self._schedule_auto_pump(user_id, incident_id, event.camera_id, delay))
                 elif next_state == EmergencyState.monitoring:
                     # Reset: Alarm OFF + Pump OFF

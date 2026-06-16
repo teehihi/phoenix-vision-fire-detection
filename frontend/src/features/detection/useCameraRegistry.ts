@@ -12,7 +12,7 @@ import {
 import { db } from '../../lib/firebase';
 import { useAuth } from '../auth/AuthContext';
 
-export type CameraSource = 'webcam' | 'rtsp' | 'ip';
+export type CameraSource = 'webcam' | 'rtsp' | 'ip' | 'video' | 'youtube';
 
 export type CameraRegistryItem = {
   id: string;
@@ -27,11 +27,26 @@ export type CameraRegistryItem = {
 export type CameraRegistryInput = Omit<CameraRegistryItem, 'id'>;
 
 const defaultCameras: CameraRegistryItem[] = [
-  { id: 'cam-lobby-a01', name: 'Sảnh A01', location: 'Tầng trệt', zone: 'Khu dân cư A', source: 'ip', streamUrl: '', enabled: true },
-  { id: 'cam-corridor-02', name: 'Hành lang tầng 2', location: 'Tầng 2', zone: 'Khu dân cư A', source: 'rtsp', streamUrl: '', enabled: true },
-  { id: 'cam-parking-b1', name: 'Bãi xe B1', location: 'Tầng hầm', zone: 'Khu kỹ thuật', source: 'rtsp', streamUrl: '', enabled: true },
-  { id: 'cam-stairs-03', name: 'Cầu thang bộ', location: 'Tầng 3', zone: 'Lối thoát hiểm', source: 'ip', streamUrl: '', enabled: false }
+  {
+    id: 'demo-wlne-fire',
+    name: '1. Kho hàng tầng 1',
+    location: 'Tầng 1',
+    zone: 'Khu kho hàng PhoenixVision',
+    source: 'video',
+    streamUrl: 'assets/demo/cam1.mp4',
+    enabled: true
+  },
+  {
+    id: 'demo-warehouse-security',
+    name: '2. Kho hàng tầng 2',
+    location: 'Tầng 2',
+    zone: 'Khu kho hàng PhoenixVision',
+    source: 'video',
+    streamUrl: 'assets/demo/cam2.mp4',
+    enabled: true
+  }
 ];
+const legacyDefaultCameraIds = new Set(['cam-lobby-a01', 'cam-corridor-02', 'cam-parking-b1', 'cam-stairs-03']);
 
 export function useCameraRegistry() {
   const { user } = useAuth();
@@ -76,6 +91,41 @@ export function useCameraRegistry() {
           });
           await batch.commit();
           localStorage.removeItem(storageKey);
+        } else {
+          const existingIds = new Set(snapshot.docs.map((cameraDoc) => cameraDoc.id));
+          const batch = writeBatch(db);
+          let hasMigration = false;
+
+          defaultCameras.forEach((camera) => {
+            const existingCamera = snapshot.docs.find((cameraDoc) => cameraDoc.id === camera.id);
+            const existingData = existingCamera?.data();
+            const needsUpdate =
+              existingData?.source !== camera.source
+              || existingData?.streamUrl !== camera.streamUrl
+              || existingData?.name !== camera.name
+              || existingData?.location !== camera.location
+              || existingData?.zone !== camera.zone;
+
+            if (!existingIds.has(camera.id) || needsUpdate) {
+              hasMigration = true;
+              batch.set(doc(cameraCollection, camera.id), {
+                ...withoutId(camera),
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+              }, { merge: true });
+            }
+          });
+
+          snapshot.docs.forEach((cameraDoc) => {
+            if (legacyDefaultCameraIds.has(cameraDoc.id)) {
+              hasMigration = true;
+              batch.delete(cameraDoc.ref);
+            }
+          });
+
+          if (hasMigration) {
+            await batch.commit();
+          }
         }
 
         unsubscribe = onSnapshot(

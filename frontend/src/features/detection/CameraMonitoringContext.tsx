@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type MutableRefObject,
   type ReactNode
 } from 'react';
 import {
@@ -14,7 +15,7 @@ import {
   type ConnectionState
 } from '../../hooks/useRealtimeStream';
 import type { EmergencyState, ProcessedFrameMessage, RealtimeRiskPayload } from '../../types/detection';
-import { turnOnPump } from '../../lib/apiClient';
+import { triggerIotAlarm, turnOnPump } from '../../lib/apiClient';
 import {
   useCameraRegistry,
   type CameraRegistryInput,
@@ -95,6 +96,8 @@ export function CameraMonitoringProvider({ children }: { children: ReactNode }) 
   const lastNotifiedStateByCamera = useRef<Record<string, EmergencyState>>({});
   const lowRiskSinceByCamera = useRef<Record<string, number>>({});
   const lastSpacePumpAtRef = useRef(0);
+  const lastIotAlarmLevelRef = useRef<string | null>(null);
+  const pendingIotAlarmLevelRef = useRef<string | null>(null);
   const cameraNames = useMemo(
     () => Object.fromEntries(registryCameras.map((camera) => [camera.id, camera.name])),
     [registryCameras]
@@ -121,6 +124,8 @@ export function CameraMonitoringProvider({ children }: { children: ReactNode }) 
       if (Date.now() - lowSince > 1000) {
         delete dismissedRiskLevelByCamera.current[frame.cameraId];
         delete lastNotifiedStateByCamera.current[frame.cameraId];
+        lastIotAlarmLevelRef.current = null;
+        pendingIotAlarmLevelRef.current = null;
         setToasts((current) => current.filter((toast) => toast.id !== existingToastId));
       }
       return;
@@ -128,6 +133,7 @@ export function CameraMonitoringProvider({ children }: { children: ReactNode }) 
 
     // If we're not LOW, clear the low risk timer
     delete lowRiskSinceByCamera.current[frame.cameraId];
+    syncIotAlarmForRisk(riskLevel, lastIotAlarmLevelRef, pendingIotAlarmLevelRef);
 
     const state = riskToEmergencyState(riskLevel);
     const previousNotifiedState = lastNotifiedStateByCamera.current[frame.cameraId] ?? 'monitoring';
@@ -312,7 +318,7 @@ function CameraStreamConnector({
   onUpdate: (cameraId: string, runtime: CameraRuntime) => void;
 }) {
   const streamUrl = useMemo(() => buildCameraStreamUrl(camera), [camera]);
-  const hasConfiguredSource = camera.source === 'webcam' || Boolean(camera.streamUrl.trim());
+  const hasConfiguredSource = camera.source !== 'youtube' && (camera.source === 'webcam' || Boolean(camera.streamUrl.trim()));
   const stream = useRealtimeStream(streamUrl, camera.enabled && hasConfiguredSource);
 
   useEffect(() => {
@@ -348,6 +354,47 @@ function getRiskMessage(riskLevel: RealtimeRiskPayload['riskLevel'], humanAtRisk
   if (riskLevel === 'CRITICAL') return 'Sự cố khẩn cấp đang diễn ra.';
   if (riskLevel === 'HIGH') return humanAtRisk ? 'Có người trong vùng nguy hiểm.' : 'Nguy cơ cháy cao đang được theo dõi.';
   return 'Có dấu hiệu bất thường, tiếp tục giám sát.';
+}
+
+function syncIotAlarmForRisk(
+  riskLevel: RealtimeRiskPayload['riskLevel'],
+  lastAlarmLevelRef: MutableRefObject<string | null>,
+  pendingAlarmLevelRef: MutableRefObject<string | null>
+) {
+  const level = riskLevel === 'CRITICAL' ? 'critical' : riskLevel === 'HIGH' ? 'high' : riskLevel === 'MEDIUM' ? 'medium' : null;
+  if (!level) {
+    return;
+  }
+
+  if (lastAlarmLevelRef.current === level || pendingAlarmLevelRef.current === level) {
+    return;
+  }
+
+  pendingAlarmLevelRef.current = level;
+  triggerIotAlarm(level)
+    .then(() => {
+      lastAlarmLevelRef.current = level;
+    })
+    .catch((err) => {
+      console.error('Failed to sync ESP32 alarm:', err);
+      window.setTimeout(() => {
+        triggerIotAlarm(level)
+          .then(() => {
+            lastAlarmLevelRef.current = level;
+          })
+          .catch((retryError) => console.error('Failed to retry ESP32 alarm:', retryError))
+          .finally(() => {
+            if (pendingAlarmLevelRef.current === level) {
+              pendingAlarmLevelRef.current = null;
+            }
+          });
+      }, 700);
+    })
+    .finally(() => {
+      if (pendingAlarmLevelRef.current === level) {
+        pendingAlarmLevelRef.current = null;
+      }
+    });
 }
 
 function riskToEmergencyState(riskLevel: RealtimeRiskPayload['riskLevel']): EmergencyState {

@@ -86,6 +86,7 @@ async def stream_webcam(websocket: WebSocket) -> None:
                     stable_detection_config.smoke_confidence,
                 ),
             )
+
             detections = smoother.update(fire_detections, frame_width=frame.shape[1], frame_height=frame.shape[0])
 
             if person_detector is not None and frame_index % person_every == 0:

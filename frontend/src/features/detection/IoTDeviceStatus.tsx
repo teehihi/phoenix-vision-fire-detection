@@ -1,5 +1,5 @@
 import { Bell, BellOff, Cpu, Droplet, LoaderCircle, Wifi, WifiOff } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getIotStatus, stopIotAlarm, triggerIotAlarm, turnOffPump, turnOnPump } from '../../lib/apiClient';
 import { useCameraMonitoring } from './CameraMonitoringContext';
 
@@ -18,6 +18,7 @@ export function IoTDeviceStatus() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [testLevel, setTestLevel] = useState<string>('medium');
+  const lastAutoStateRef = useRef<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -60,6 +61,64 @@ export function IoTDeviceStatus() {
       setCountdown(null);
     }
   }, [highestEmergencyState, status?.pump, countdown]);
+
+  useEffect(() => {
+    if (!status?.online) {
+      return;
+    }
+
+    if (highestEmergencyState === 'monitoring') {
+      lastAutoStateRef.current = null;
+      return;
+    }
+
+    const level = highestEmergencyState === 'critical'
+      ? 'critical'
+      : highestEmergencyState === 'emergency'
+        ? 'high'
+        : 'medium';
+    const shouldPumpNow = highestEmergencyState === 'critical';
+    const autoKey = `${highestEmergencyState}:${status.alarm ? status.alarm_level ?? 'on' : 'off'}:${status.pump ? 'pump-on' : 'pump-off'}`;
+    const needsSync = !status.alarm || status.alarm_level !== level || (shouldPumpNow && !status.pump);
+
+    if (!needsSync || lastAutoStateRef.current === autoKey) {
+      return;
+    }
+
+    lastAutoStateRef.current = autoKey;
+    Promise.allSettled([triggerIotAlarm(level), shouldPumpNow ? turnOnPump() : Promise.resolve(null)])
+      .then(([alarmResult, pumpResult]) => {
+        setStatus((prev) => prev ? {
+          ...prev,
+          alarm: alarmResult.status === 'fulfilled' ? alarmResult.value.alarm : prev.alarm,
+          alarm_level: alarmResult.status === 'fulfilled' ? level : prev.alarm_level,
+          pump: pumpResult.status === 'fulfilled' && pumpResult.value ? pumpResult.value.pump : prev.pump
+        } : prev);
+      })
+      .catch(() => {
+        // The polling loop will surface connection errors and retry status reads.
+      });
+  }, [highestEmergencyState, status?.alarm, status?.alarm_level, status?.online, status?.pump]);
+
+  useEffect(() => {
+    if (
+      countdown !== 0
+      || !status?.online
+      || status?.pump
+      || (highestEmergencyState !== 'warning' && highestEmergencyState !== 'emergency')
+    ) {
+      return;
+    }
+
+    turnOnPump()
+      .then((data) => {
+        setStatus((prev) => prev ? { ...prev, pump: data.pump } : prev);
+        setCountdown(null);
+      })
+      .catch(() => {
+        // Keep status polling as the source of truth if the command fails.
+      });
+  }, [countdown, highestEmergencyState, status?.online, status?.pump]);
 
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;

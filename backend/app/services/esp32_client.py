@@ -17,9 +17,16 @@ class Esp32Client:
 
     def __init__(self):
         self.base_url = settings.esp32_base_url.rstrip("/")
-        self.timeout = 5.0  # seconds
+        self.timeout = httpx.Timeout(1.2, connect=0.6)
+        self._client: httpx.AsyncClient | None = None
         self.pump_on = False
         self.manual_override = False
+        self.alarm_level: str | None = None
+
+    async def _http_client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=self.timeout)
+        return self._client
 
     async def _request(self, method: str, endpoint: str) -> Dict[str, Any]:
         if not self.base_url:
@@ -33,10 +40,20 @@ class Esp32Client:
         logger.info(f"Sending {method} request to ESP32: {url}")
 
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.request(method, url)
-                response.raise_for_status()
-                return response.json()
+            last_error: Exception | None = None
+            for attempt in range(2):
+                try:
+                    client = await self._http_client()
+                    response = await client.request(method, url)
+                    response.raise_for_status()
+                    return response.json()
+                except httpx.RequestError as exc:
+                    last_error = exc
+                    if attempt == 0:
+                        await self._reset_client()
+                        continue
+                    raise
+            raise last_error or RuntimeError("ESP32 request failed")
         except httpx.TimeoutException:
             logger.error(f"Timeout connecting to ESP32 at {url}")
             raise HTTPException(
@@ -68,11 +85,17 @@ class Esp32Client:
 
     async def trigger_alarm(self, level: str = "medium") -> Dict[str, Any]:
         """Trigger the alarm on the ESP32 with a specific level (medium, high, critical)."""
-        return await self._request("GET", f"/alarm?level={level}")
+        normalized_level = level.lower()
+        if self.alarm_level == normalized_level:
+            return {"success": True, "alarm": True, "level": normalized_level, "message": "Already in requested alarm level"}
+        response = await self._request("GET", f"/alarm?level={normalized_level}")
+        self.alarm_level = normalized_level
+        return response
 
     async def stop_alarm(self) -> Dict[str, Any]:
         """Stop the alarm on the ESP32."""
         response = await self._request("GET", "/stop")
+        self.alarm_level = None
         self.pump_on = False
         self.manual_override = False
         return response
@@ -97,5 +120,10 @@ class Esp32Client:
         if not on:
             self.manual_override = False
         return response
+
+    async def _reset_client(self) -> None:
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
+        self._client = None
 
 esp32_client = Esp32Client()

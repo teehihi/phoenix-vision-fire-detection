@@ -384,7 +384,8 @@ function createRegistryCamera(camera: CameraRegistryItem, frame: ProcessedFrameM
   const hasStreamUrl = Boolean(camera.streamUrl.trim());
   const risk = frame?.risk;
   const detections = frame?.detections ?? [];
-  const activeStatus: CameraStatus = streamState === 'connected' ? 'online' : streamState === 'error' ? 'offline' : 'warning';
+  const isYoutubeSource = camera.source === 'youtube';
+  const activeStatus: CameraStatus = isYoutubeSource ? 'online' : streamState === 'connected' ? 'online' : streamState === 'error' ? 'offline' : 'warning';
 
   return {
     id: camera.id,
@@ -397,13 +398,15 @@ function createRegistryCamera(camera: CameraRegistryItem, frame: ProcessedFrameM
     riskScore: risk?.riskScore ?? 0,
     fps: camera.enabled ? frame?.fps ?? 0 : 0,
     lastSeen: camera.enabled
-      ? frame
-        ? 'Vừa xong'
-        : hasStreamUrl
-          ? streamState === 'error'
-            ? 'Mất kết nối'
-            : 'Đang kết nối'
-          : 'Chưa có stream URL'
+      ? isYoutubeSource
+        ? 'Video mẫu'
+        : frame
+          ? 'Vừa xong'
+          : hasStreamUrl
+            ? streamState === 'error'
+              ? 'Mất kết nối'
+              : 'Đang kết nối'
+            : 'Chưa có stream URL'
       : 'Đã tắt',
     fire: detections.filter((item) => item.label === 'fire').length,
     smoke: detections.filter((item) => item.label === 'smoke').length,
@@ -411,6 +414,29 @@ function createRegistryCamera(camera: CameraRegistryItem, frame: ProcessedFrameM
     enabled: camera.enabled,
     frame
   };
+}
+
+function getYoutubeEmbedUrl(streamUrl?: string) {
+  const rawUrl = streamUrl?.trim();
+  if (!rawUrl) {
+    return null;
+  }
+
+  try {
+    const url = new URL(rawUrl);
+    const videoId = url.hostname.includes('youtu.be')
+      ? url.pathname.replace('/', '')
+      : url.searchParams.get('v') ?? url.pathname.split('/').filter(Boolean).pop();
+    if (!videoId) {
+      return rawUrl;
+    }
+    const embedUrl = new URL(`https://www.youtube.com/embed/${videoId}`);
+    embedUrl.searchParams.set('rel', '0');
+    embedUrl.searchParams.set('modestbranding', '1');
+    return embedUrl.toString();
+  } catch {
+    return rawUrl;
+  }
 }
 
 function getGridClass(gridMode: GridMode, inspectorOpen: boolean) {
@@ -464,6 +490,7 @@ function CameraGridCard({
   onEdit: () => void;
 }) {
   const imageSrc = cameraItem.frame ? `data:image/jpeg;base64,${cameraItem.frame.frame}` : null;
+  const youtubeEmbedUrl = getYoutubeEmbedUrl(cameraItem.streamUrl);
   const isDanger = cameraItem.riskLevel === 'HIGH' || cameraItem.riskLevel === 'CRITICAL';
 
   return (
@@ -492,7 +519,16 @@ function CameraGridCard({
           </span>
         ) : null}
 
-        {imageSrc ? (
+        {cameraItem.source === 'youtube' && youtubeEmbedUrl && cameraItem.enabled ? (
+          <iframe
+            src={youtubeEmbedUrl}
+            title={cameraItem.name}
+            className="h-full w-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            referrerPolicy="strict-origin-when-cross-origin"
+            allowFullScreen
+          />
+        ) : imageSrc ? (
           <img src={imageSrc} alt={`${cameraItem.name} realtime feed`} className="h-full w-full object-cover" />
         ) : (
           <CameraPlaceholder cameraItem={cameraItem} />
@@ -698,6 +734,10 @@ function CameraInspector({
         </div>
         {cameraItem.isPrimary ? (
           <p className="mt-2 text-xs leading-5 text-slate-500">{streamError ?? `WebSocket hiện tại: ${streamState}. Camera local là nguồn stream thật từ AI service.`}</p>
+        ) : cameraItem.source === 'youtube' ? (
+          <p className="mt-2 text-xs leading-5 text-slate-500">
+            Video mẫu YouTube được nhúng trực tiếp để demo sau khi clone dự án, không chạy qua AI service.
+          </p>
         ) : cameraItem.streamUrl ? (
           <p className="mt-2 text-xs leading-5 text-slate-500">
             {streamError ?? `Stream ${cameraItem.source.toUpperCase()} tự chạy khi camera được bật, không cần chọn card.`}
@@ -741,6 +781,7 @@ function FullscreenCamera({
   onClose: () => void;
 }) {
   const imageSrc = cameraItem.frame ? `data:image/jpeg;base64,${cameraItem.frame.frame}` : null;
+  const youtubeEmbedUrl = getYoutubeEmbedUrl(cameraItem.streamUrl);
   const detections = cameraItem.frame?.detections ?? [];
   const risk = cameraItem.frame?.risk;
   const [incidents, setIncidents] = useState<IncidentTimelineEvent[]>([]);
@@ -806,7 +847,16 @@ function FullscreenCamera({
         <div className="grid min-h-0 flex-1 bg-slate-100 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="flex min-h-0 flex-col bg-slate-950">
             <div className="relative min-h-0 flex-1">
-              {imageSrc ? <img src={imageSrc} alt={`${cameraItem.name} fullscreen feed`} className="h-full w-full object-contain" /> : <CameraPlaceholder cameraItem={cameraItem} />}
+              {cameraItem.source === 'youtube' && youtubeEmbedUrl && cameraItem.enabled ? (
+                <iframe
+                  src={youtubeEmbedUrl}
+                  title={cameraItem.name}
+                  className="h-full w-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  allowFullScreen
+                />
+              ) : imageSrc ? <img src={imageSrc} alt={`${cameraItem.name} fullscreen feed`} className="h-full w-full object-contain" /> : <CameraPlaceholder cameraItem={cameraItem} />}
               {imageSrc && showAiInfo ? <FrameAiInfo cameraItem={cameraItem} /> : null}
             </div>
 
@@ -1085,7 +1135,15 @@ function CameraFormPanel({
   const [connectionTest, setConnectionTest] = useState<ConnectionTestState>({ status: 'idle' });
   const connectionTestVersion = useRef(0);
   const isEdit = panelState.mode === 'edit';
-  const canTest = source === 'webcam' || Boolean(streamUrl.trim());
+  const canTest = source !== 'youtube' && (source === 'webcam' || Boolean(streamUrl.trim()));
+  const streamUrlLabel = source === 'webcam' ? 'Webcam index' : source === 'youtube' ? 'YouTube embed URL' : source === 'video' ? 'Video file path' : 'RTSP hoặc IP stream URL';
+  const streamUrlPlaceholder = source === 'webcam'
+    ? '0 hoặc 1'
+    : source === 'youtube'
+      ? 'https://www.youtube.com/embed/...'
+      : source === 'video'
+        ? 'assets/demo/cam1.mp4'
+        : 'rtsp://username:password@camera-ip:554/stream';
 
   function resetConnectionTest() {
     connectionTestVersion.current += 1;
@@ -1164,13 +1222,13 @@ function CameraFormPanel({
           <FormField label="Khu vực" value={location} onChange={setLocation} placeholder="Ví dụ: Tầng 4" required />
           <FormField label="Nhóm vị trí" value={zone} onChange={setZone} placeholder="Ví dụ: Tòa A" required />
           <FormField
-            label={source === 'webcam' ? 'Webcam index' : 'RTSP hoặc IP stream URL'}
+            label={streamUrlLabel}
             value={streamUrl}
             onChange={(value) => {
               setStreamUrl(value);
               resetConnectionTest();
             }}
-            placeholder={source === 'webcam' ? '0 hoặc 1' : 'rtsp://username:password@camera-ip:554/stream'}
+            placeholder={streamUrlPlaceholder}
             required={source !== 'webcam'}
           />
           <label className="block">
@@ -1185,7 +1243,9 @@ function CameraFormPanel({
             >
               <option value="rtsp">RTSP camera</option>
               <option value="ip">IP camera</option>
+              <option value="video">Video file</option>
               <option value="webcam">Webcam local</option>
+              <option value="youtube">YouTube demo video</option>
             </select>
           </label>
 

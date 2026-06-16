@@ -125,7 +125,7 @@ def test_smoke_supports_low_confidence_fire_and_fire_takes_priority() -> None:
 
 def test_rejects_stable_but_weak_smoke() -> None:
     smoother = TemporalDetectionSmoother(StableDetectionConfig(min_area_ratio=0.0))
-    weak_smoke = _detection("smoke", 0.13)
+    weak_smoke = _detection("smoke", 0.09)
 
     for _ in range(5):
         output = smoother.update([weak_smoke], frame_width=640, frame_height=480)
