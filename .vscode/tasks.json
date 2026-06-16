@@ -1,0 +1,19 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run PhoenixVision",
+      "type": "shell",
+      "command": "python3",
+      "args": ["run_project.py", "--restart-existing"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "windows": {
+        "command": "python",
+        "args": ["run_project.py", "--restart-existing"]
+      },
+      "problemMatcher": []
+    }
+  ]
+}
