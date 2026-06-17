@@ -3,9 +3,12 @@ import { type FormEvent, type ReactNode, useRef, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { requestRegistrationOtp, verifyRegistrationOtp } from '../../lib/apiClient';
 import { publicAsset } from '../../lib/assets';
-import { DEMO_EMAIL, DEMO_PASSWORD, useAuth } from './AuthContext';
+import { useAuth } from './AuthContext';
 
 type AuthMode = 'login' | 'register';
+
+const DEFAULT_LOGIN_EMAIL = 'hotrofindora@gmail.com';
+const DEFAULT_LOGIN_PASSWORD = '21052005';
 
 export function AuthPage() {
   const { user, login, register } = useAuth();
@@ -13,9 +16,9 @@ export function AuthPage() {
   const location = useLocation();
   const [mode, setMode] = useState<AuthMode>('login');
   const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(DEFAULT_LOGIN_EMAIL);
   const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
+  const [password, setPassword] = useState(DEFAULT_LOGIN_PASSWORD);
   const [confirmPassword, setConfirmPassword] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [otp, setOtp] = useState('');
@@ -94,7 +97,8 @@ export function AuthPage() {
     setMode(nextMode);
     setError(null);
     setSuccessMessage(null);
-    setPassword('');
+    setEmail(nextMode === 'login' ? DEFAULT_LOGIN_EMAIL : '');
+    setPassword(nextMode === 'login' ? DEFAULT_LOGIN_PASSWORD : '');
     setConfirmPassword('');
     setAcceptedTerms(false);
     setOtp('');
@@ -243,11 +247,6 @@ export function AuthPage() {
           </p>
         ) : null}
 
-        {!isRegister && !isOtpStep ? (
-          <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-center text-xs text-slate-500">
-            Demo: <span className="font-semibold text-slate-700">{DEMO_EMAIL}</span> / <span className="font-semibold text-slate-700">{DEMO_PASSWORD}</span>
-          </p>
-        ) : null}
       </section>
     </main>
   );
